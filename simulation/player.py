@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from enum import Enum, auto
+from typing import Optional
 
+from simulation.enums import ActionChoice, InfectionStatus
 from utils import do_with_probability
 
 TRANSMISSION_RATE = 0.15
@@ -10,17 +11,14 @@ MORTALITY_RATE = 0.01
 IMMUNITY_LOSS_RATE = 0.033
 
 
-class InfectionStatus(Enum):
-    Susceptible = auto()
-    Exposed = auto()
-    Infected = auto()
-    Recovered = auto()
-    Dead = auto()
-
-
 @dataclass
-class Player:
+class Player[T: ActionChoice]:
+    """
+    Class representing a player in the simulation.
+    """
+
     infection_status: InfectionStatus = InfectionStatus.Susceptible
+    _action_choice: Optional[T] = None
 
     def die(self) -> None:
         """
@@ -101,22 +99,24 @@ class Player:
         """
         return self.dead
 
-    def interact_with(self, other: Player) -> None:
+    def interact_with(self, other: "Player") -> None:
         """
         Makes the player interact with another
         :param other: The other player with whom to interact
         :return: None
         """
         if self.susceptible:
-            if not other.infected: return
+            if not other.infected:
+                return
             do_with_probability(TRANSMISSION_RATE, self.expose)
         elif self.infected:
-            if not other.susceptible: return
+            if not other.susceptible:
+                return
             do_with_probability(TRANSMISSION_RATE, other.expose)
 
-    def run_infection(self) -> None:
+    def step(self) -> None:
         """
-        Advance one step in the infection model for the player
+        Advance one step in the simulation for the player
         :return: None
         """
         if self.exposed:
@@ -128,8 +128,31 @@ class Player:
         elif self.recovered:
             do_with_probability(IMMUNITY_LOSS_RATE, self.lose_immunity)
 
+    def heal(self) -> None:
+        """
+        Heal the player
+        :return: None
+        """
+        ...
 
-if __name__ == '__main__':
+    @property
+    def action_choice(self) -> Optional[T]:
+        """
+        :return: The chosen action for this player
+        """
+        return self._action_choice
+
+    @action_choice.setter
+    def action_choice(self, choice: Optional[T]) -> None:
+        """
+        Set the action choice for this player
+        :param choice: The action choice to set
+        :return: None
+        """
+        self._action_choice = choice
+
+
+if __name__ == "__main__":
     p1 = Player()
     p2 = Player()
     p = lambda: print(p1.infection_status, p2.infection_status)
@@ -137,5 +160,5 @@ if __name__ == '__main__':
     p1.expose()
 
     for _ in range(10):
-        p1.run_infection()
+        p1.step()
         p()
