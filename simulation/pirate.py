@@ -70,7 +70,8 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
             self.days_at_sea = 0
             self.crew.pirates_at_sea -= 1
 
-        Player.action_choice.fset(self, choice)
+        if Player.action_choice.fset is not None:
+            Player.action_choice.fset(self, choice)
 
     @property
     def target(self) -> Optional["Villager | Merchant"]:
@@ -95,7 +96,8 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
         if self.action_choice is ActionChoice.Rest and not isinstance(target, Merchant):
             raise WrongTargetError(ActionChoice.Rest, Merchant)
 
-        Player.target.fset(self, target)
+        if Player.target.fset is not None:
+            Player.target.fset(self, target)
 
     @property
     def expedition_money_variation(self) -> int:

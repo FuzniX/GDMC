@@ -63,7 +63,8 @@ class Merchant(Player[MerchantActionChoice, int]):
                 message=f"Target must be an integer between {MIN_ITEMS} and {MAX_ITEMS} for {self.action_choice.value} action."
             )
 
-        Player.target.fset(self, target)
+        if Player.target.fset is not None:
+            Player.target.fset(self, target)
 
     def restock(self) -> None: ...
 

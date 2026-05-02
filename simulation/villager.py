@@ -54,7 +54,8 @@ class Villager(Player[VillagerActionChoice, "Pirate | Merchant"]):
         if self.action_choice is ActionChoice.Buy and not isinstance(target, Merchant):
             raise WrongTargetError(ActionChoice.Buy, Merchant)
 
-        Player.target.fset(self, target)
+        if Player.target.fset is not None:
+            Player.target.fset(self, target)
 
     def work(self) -> None:
         self.money += WORK_MONEY
