@@ -1,9 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from simulation.exceptions import WrongTargetError
-
 from .enums import ActionChoice, MerchantActionChoice
+from .exceptions import WrongTargetError
 from .player import Player
 
 BASE_PRICE = 1000  # money

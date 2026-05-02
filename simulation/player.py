@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from simulation.exceptions import WrongTargetError
 from utils import do_with_probability
 
 from .enums import ActionChoice, InfectionStatus
+from .exceptions import WrongTargetError
 
 TRANSMISSION_RATE = 0.15
 INCUBATION_RATE = 0.5
