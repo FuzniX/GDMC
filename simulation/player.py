@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from tkinter.constants import W
 from typing import Optional
 
 from simulation.exceptions import WrongTargetError
