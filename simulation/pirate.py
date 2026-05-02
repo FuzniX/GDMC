@@ -1,10 +1,17 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from player import Player
-
-from simulation.enums import ActionChoice, PirateActionChoice
 from utils import do_with_probability
+
+from .enums import ActionChoice, PirateActionChoice
+from .exceptions import WrongTargetError
+from .player import Player
+
+if TYPE_CHECKING:
+    from .merchant import Merchant
+    from .villager import Villager
 
 
 @dataclass
@@ -14,7 +21,7 @@ class PirateCrew:
 
 
 @dataclass(kw_only=True)
-class Pirate(Player[PirateActionChoice]):
+class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
     """
     Class representing a pirate player in the simulation.
     """
@@ -63,6 +70,33 @@ class Pirate(Player[PirateActionChoice]):
             self.days_at_sea = 0
             self.crew.pirates_at_sea -= 1
 
+        Player.action_choice.fset(self, choice)
+
+    @property
+    def target(self) -> Optional["Villager | Merchant"]:
+        return super().target
+
+    @target.setter
+    def target(self, target: Optional["Villager | Merchant"]) -> None:
+        from .merchant import Merchant
+        from .villager import Villager
+
+        # No target for expedition
+        if self.action_choice is ActionChoice.Expedition and target is not None:
+            raise WrongTargetError(ActionChoice.Expedition)
+
+        # Villager or Merchant target required for theft
+        if self.action_choice is ActionChoice.Theft and not isinstance(
+            target, (Villager, Merchant)
+        ):
+            raise WrongTargetError(ActionChoice.Theft, (Villager, Merchant))
+
+        # Merchant target required for rest
+        if self.action_choice is ActionChoice.Rest and not isinstance(target, Merchant):
+            raise WrongTargetError(ActionChoice.Rest, Merchant)
+
+        Player.target.fset(self, target)
+
     @property
     def expedition_money_variation(self) -> int:
         return 50 * self.crew.pirates_at_sea * self.days_at_sea
@@ -105,4 +139,9 @@ class Pirate(Player[PirateActionChoice]):
 if __name__ == "__main__":
     crew = PirateCrew()
     pirate = Pirate(crew=crew)
-    print(pirate.infection_status)
+
+    from .merchant import Merchant
+    from .villager import Villager
+
+    pirate.action_choice = ActionChoice.Theft
+    pirate.target = Merchant()

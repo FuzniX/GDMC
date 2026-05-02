@@ -1,8 +1,11 @@
 from dataclasses import dataclass
+from tkinter.constants import W
 from typing import Optional
 
-from simulation.enums import ActionChoice, InfectionStatus
+from simulation.exceptions import WrongTargetError
 from utils import do_with_probability
+
+from .enums import ActionChoice, InfectionStatus
 
 TRANSMISSION_RATE = 0.15
 INCUBATION_RATE = 0.5
@@ -12,13 +15,14 @@ IMMUNITY_LOSS_RATE = 0.033
 
 
 @dataclass
-class Player[T: ActionChoice]:
+class Player[T: ActionChoice, U]:
     """
     Class representing a player in the simulation.
     """
 
     infection_status: InfectionStatus = InfectionStatus.Susceptible
     _action_choice: Optional[T] = None
+    _target: Optional[U] = None
 
     def die(self) -> None:
         """
@@ -150,6 +154,27 @@ class Player[T: ActionChoice]:
         :return: None
         """
         self._action_choice = choice
+
+    @property
+    def target(self) -> Optional[U]:
+        """
+        :return: The target for the upcoming action
+        """
+        return self._target
+
+    @target.setter
+    def target(self, target: Optional[U]) -> None:
+        """
+        Set the target for the upcoming action
+        :param target: The target to set
+        :return: None
+        """
+        if self.action_choice is None and target is not None:
+            raise WrongTargetError()
+        if self.action_choice is ActionChoice.Heal and target is not None:
+            raise WrongTargetError(ActionChoice.Heal)
+
+        self._target = target
 
 
 if __name__ == "__main__":
