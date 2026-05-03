@@ -3,15 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
-from utils import do_with_probability
+from utils import do_with_probability, probability
 
 from .enums import ActionChoice, PirateActionChoice
-from .exceptions import WrongTargetError
+from .exceptions import ImpossibleActionError, WrongTargetError
 from .player import Player
 
 if TYPE_CHECKING:
     from .merchant import Merchant
     from .villager import Villager
+
+FOOD_PURCHASE_QUANTITY = 10  # units
+STOLEN_MONEY_RATE = 0.20  # %
 
 
 @dataclass
@@ -41,6 +44,14 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
     def EXPEDITION_MORTALITY_RATE(days: int, pirates: int) -> float:
         return (0.01 * days) / pirates
 
+    @property
+    def money(self) -> int:
+        return self.crew.money
+
+    @money.setter
+    def money(self, value: int) -> None:
+        self.crew.money = value
+
     def step(self) -> None:
         super().step()
 
@@ -63,12 +74,19 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
 
     @action_choice.setter
     def action_choice(self, choice: Optional[PirateActionChoice]) -> None:
+        # Reset expedition state
         if (
             self.action_choice is ActionChoice.Expedition
             and choice is not ActionChoice.Expedition
-        ):  # Reset expedition state
+        ):
             self.days_at_sea = 0
             self.crew.pirates_at_sea -= 1
+
+        elif (
+            self.action_choice is not ActionChoice.Expedition
+            and choice is ActionChoice.Expedition
+        ):
+            self.crew.pirates_at_sea += 1
 
         if Player.action_choice.fset is not None:
             Player.action_choice.fset(self, choice)
@@ -107,8 +125,10 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
         """
         Perform an expedition to gain money and bounty, and potentially infect the crew.
         """
+        self.days_at_sea += 1
+
         # Money gain
-        self.crew.money += self.expedition_money_variation
+        self.money += self.expedition_money_variation
 
         # Bounty gain
         self.bounty *= round(1.05**self.days_at_sea)
@@ -121,7 +141,7 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
             self.expose,
         )
         do_with_probability(
-            Pirate.EXPEDITION_MORTALITY_RATE(self.food, self.crew.money),
+            Pirate.EXPEDITION_MORTALITY_RATE(self.food, self.money),
             self.die,
         )
 
@@ -129,11 +149,52 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
         """
         Attempt to steal money from a villager or merchant.
         """
-        ...
+        if self.target is None or not isinstance(self.target, (Villager, Merchant)):
+            raise WrongTargetError(ActionChoice.Theft, (Villager, Merchant))
+
+        if not probability(self.theft_success_rate):
+            self.idle_period = self.theft_jail_period
+            return
+
+        stolen_money = round(STOLEN_MONEY_RATE * self.target.money)
+
+        self.money += stolen_money
+        self.target.money -= stolen_money
 
     def rest(self) -> None:
         """
         Rest in the village and buy food in exchange of money.
+        """
+        from .merchant import Merchant
+
+        if self.target is None or not isinstance(
+            self.target, Merchant
+        ):  # Should never be the case, but security check
+            raise WrongTargetError(ActionChoice.Rest, Merchant)
+
+        purchase_price = FOOD_PURCHASE_QUANTITY * self.target.average_price
+
+        # The crew doesn't have enough money.
+        if purchase_price > self.money:
+            raise ImpossibleActionError(
+                ActionChoice.Rest, "Not enough money to buy food at the merchant."
+            )
+
+        self.money -= purchase_price
+        self.target.money += purchase_price
+        self.food += FOOD_PURCHASE_QUANTITY
+
+    @property
+    def theft_success_rate(self) -> float:
+        """
+        The probability of successfully stealing money from a target.
+        """
+        ...
+
+    @property
+    def theft_jail_period(self) -> int:
+        """
+        The amount of days spent in jail after a failed theft attempt.
         """
         ...
 

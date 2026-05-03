@@ -74,6 +74,12 @@ class Merchant(Player[MerchantActionChoice, int]):
 
     def sell_new_item(self) -> None: ...
 
+    @property
+    def average_price(self) -> int:
+        if not self.inventory:
+            return 0
+        return round(sum(item.price for item in self.inventory) / len(self.inventory))
+
 
 if __name__ == "__main__":
     m = Merchant()
