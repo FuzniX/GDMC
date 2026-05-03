@@ -20,6 +20,8 @@ class Player[T: ActionChoice, U]:
     """
 
     infection_status: InfectionStatus = InfectionStatus.Susceptible
+    idle_period: int = 0
+
     _action_choice: Optional[T] = None
     _target: Optional[U] = None
 
@@ -94,14 +96,6 @@ class Player[T: ActionChoice, U]:
         """
         return self.infection_status == InfectionStatus.Susceptible
 
-    @property
-    def can_play(self) -> bool:
-        """
-        Whether the player can play this round
-        :return: A boolean
-        """
-        return self.dead
-
     def interact_with(self, other: "Player") -> None:
         """
         Makes the player interact with another
@@ -117,16 +111,28 @@ class Player[T: ActionChoice, U]:
                 return
             do_with_probability(TRANSMISSION_RATE, other.expose)
 
+    @property
+    def can_play(self) -> bool:
+        """
+        Whether the player can play this round
+        :return: A boolean
+        """
+        return not self.dead and self.idle_period == 0
+
     def step(self) -> None:
         """
         Advance one step in the simulation for the player
         :return: None
         """
+        # Decrease idle period by 1, but not below 0
+        self.idle_period = max(0, self.idle_period - 1)
+
+        # Infection model specifics
         if self.exposed:
             do_with_probability(INCUBATION_RATE, self.infect)
         elif self.infected:
             _, done = do_with_probability(RECOVERY_RATE, self.recover)
-            if not done:
+            if not done:  # If not recovered, then perhaps die
                 do_with_probability(MORTALITY_RATE, self.die)
         elif self.recovered:
             do_with_probability(IMMUNITY_LOSS_RATE, self.lose_immunity)
