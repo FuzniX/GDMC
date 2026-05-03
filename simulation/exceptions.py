@@ -32,3 +32,12 @@ class WrongTargetError(Exception):
                 )
 
         super().__init__(message)
+
+
+class ImpossibleActionError(Exception):
+    def __init__(
+        self,
+        action_choice: ActionChoice,
+        message: Optional[str] = None,
+    ) -> None:
+        super().__init__(f"Cannot perform {action_choice.value} action.\n\n{message}")
