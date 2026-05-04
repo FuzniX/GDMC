@@ -16,6 +16,7 @@ PRICE_VARIATION = 10  # %
 
 @dataclass
 class Item:
+    owner: "Merchant"
     price: int = BASE_PRICE
     max_quantity: int = MAX_QUANTITY
     owned_quantity: int = 0
