@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 from .enums import ActionChoice, VillagerActionChoice
 from .exceptions import WrongTargetError
@@ -20,20 +20,13 @@ class Villager(Player[VillagerActionChoice, "Pirate | Item"]):
     happiness: int = 0
     money: int = 0
 
-    def step(self) -> None:
-        super().step()
-
-        match self.action_choice:
-            case ActionChoice.Work:
-                self.work()
-            case ActionChoice.Barter:
-                self.barter()
-            case ActionChoice.Buy:
-                self.buy()
-            case ActionChoice.Heal:
-                self.heal()
-            case _:
-                pass
+    @property
+    def _action_map(self) -> dict[ActionChoice, Callable[[], None]]:
+        return super()._action_map | {
+            ActionChoice.Work: self.work,
+            ActionChoice.Barter: self.barter,
+            ActionChoice.Buy: self.buy,
+        }
 
     @property
     def target(self) -> Optional["Pirate | Item"]:

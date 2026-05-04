@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, ClassVar, Optional
 
 from utils import do_with_probability, probability
 
@@ -52,21 +52,13 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant | Item"]):
     def money(self, value: int) -> None:
         self.crew.money = value
 
-    def step(self) -> None:
-        super().step()
-
-        if self.can_play:
-            match self.action_choice:
-                case ActionChoice.Expedition:
-                    self.explore()
-                case ActionChoice.Theft:
-                    self.thief()
-                case ActionChoice.Rest:
-                    self.rest()
-                case ActionChoice.Heal:
-                    self.heal()
-                case _:
-                    pass
+    @property
+    def _action_map(self) -> dict[ActionChoice, Callable[[], None]]:
+        return super()._action_map | {
+            ActionChoice.Expedition: self.explore,
+            ActionChoice.Theft: self.thief,
+            ActionChoice.Rest: self.rest,
+        }
 
     @property
     def action_choice(self) -> Optional[PirateActionChoice]:
@@ -194,14 +186,14 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant | Item"]):
         """
         The probability of successfully stealing money from a target.
         """
-        ...
+        return 1.0  # TODO À changer
 
     @property
     def theft_jail_period(self) -> int:
         """
         The amount of days spent in jail after a failed theft attempt.
         """
-        ...
+        return 7  # TODO À Changer
 
 
 if __name__ == "__main__":

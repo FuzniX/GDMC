@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Callable, Optional
 
 from .enums import ActionChoice, MerchantActionChoice
 from .exceptions import WrongTargetError
@@ -27,20 +27,14 @@ class Merchant(Player[MerchantActionChoice, int]):
     money: int = 0
     inventory: list[Item] = field(default_factory=list)
 
-    def step(self) -> None:
-        super().step()
-
-        match self._action_choice:
-            case ActionChoice.Restock:
-                self.restock()
-            case ActionChoice.IncreasePrice:
-                self.increase_price()
-            case ActionChoice.DecreasePrice:
-                self.decrease_price()
-            case ActionChoice.SellNewItem:
-                self.sell_new_item()
-            case _:
-                pass
+    @property
+    def _action_map(self) -> dict[ActionChoice, Callable[[], None]]:
+        return super()._action_map | {
+            ActionChoice.Restock: self.restock,
+            ActionChoice.IncreasePrice: self.increase_price,
+            ActionChoice.DecreasePrice: self.decrease_price,
+            ActionChoice.SellNewItem: self.sell_new_item,
+        }
 
     @property
     def target(self) -> Optional[int]:
