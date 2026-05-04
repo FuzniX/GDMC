@@ -50,7 +50,7 @@ class Villager(Player[VillagerActionChoice, "Pirate | Item"]):
         ):
             raise WrongTargetError(self.action_choice)
 
-        # Target must be a Merchant for Buy
+        # Target must be an Item for Buy
         if self.action_choice is ActionChoice.Buy and not isinstance(target, Item):
             raise WrongTargetError(ActionChoice.Buy, Item)
 

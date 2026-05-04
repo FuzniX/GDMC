@@ -24,7 +24,7 @@ class PirateCrew:
 
 
 @dataclass(kw_only=True)
-class Pirate(Player[PirateActionChoice, "Villager | Item"]):
+class Pirate(Player[PirateActionChoice, "Villager | Merchant | Item"]):
     """
     Class representing a pirate player in the simulation.
     """
@@ -96,7 +96,7 @@ class Pirate(Player[PirateActionChoice, "Villager | Item"]):
         return super().target
 
     @target.setter
-    def target(self, target: Optional["Villager | Item"]) -> None:
+    def target(self, target: Optional["Villager | Merchant | Item"]) -> None:
         from .merchant import Merchant
         from .villager import Villager
 
@@ -110,7 +110,7 @@ class Pirate(Player[PirateActionChoice, "Villager | Item"]):
         ):
             raise WrongTargetError(ActionChoice.Theft, (Villager, Merchant))
 
-        # Merchant target required for rest
+        # Item target required for rest
         if self.action_choice is ActionChoice.Rest and not isinstance(target, Item):
             raise WrongTargetError(ActionChoice.Rest, Item)
 
