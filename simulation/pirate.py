@@ -10,7 +10,7 @@ from .exceptions import ImpossibleActionError, WrongTargetError
 from .player import Player
 
 if TYPE_CHECKING:
-    from .merchant import Merchant
+    from .merchant import Item, Merchant
     from .villager import Villager
 
 FOOD_PURCHASE_QUANTITY = 10  # units
@@ -24,7 +24,7 @@ class PirateCrew:
 
 
 @dataclass(kw_only=True)
-class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
+class Pirate(Player[PirateActionChoice, "Villager | Merchant | Item"]):
     """
     Class representing a pirate player in the simulation.
     """
@@ -92,11 +92,11 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
             Player.action_choice.fset(self, choice)
 
     @property
-    def target(self) -> Optional["Villager | Merchant"]:
+    def target(self) -> Optional["Villager | Merchant | Item"]:
         return super().target
 
     @target.setter
-    def target(self, target: Optional["Villager | Merchant"]) -> None:
+    def target(self, target: Optional["Villager | Merchant | Item"]) -> None:
         from .merchant import Merchant
         from .villager import Villager
 
@@ -110,9 +110,9 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
         ):
             raise WrongTargetError(ActionChoice.Theft, (Villager, Merchant))
 
-        # Merchant target required for rest
-        if self.action_choice is ActionChoice.Rest and not isinstance(target, Merchant):
-            raise WrongTargetError(ActionChoice.Rest, Merchant)
+        # Item target required for rest
+        if self.action_choice is ActionChoice.Rest and not isinstance(target, Item):
+            raise WrongTargetError(ActionChoice.Rest, Item)
 
         if Player.target.fset is not None:
             Player.target.fset(self, target)
@@ -161,18 +161,20 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
         self.money += stolen_money
         self.target.money -= stolen_money
 
+        self.interact_with(self.target)
+
     def rest(self) -> None:
         """
         Rest in the village and buy food in exchange of money.
         """
-        from .merchant import Merchant
+        from .merchant import Item
 
         if self.target is None or not isinstance(
-            self.target, Merchant
+            self.target, Item
         ):  # Should never be the case, but security check
-            raise WrongTargetError(ActionChoice.Rest, Merchant)
+            raise WrongTargetError(ActionChoice.Rest, Item)
 
-        purchase_price = FOOD_PURCHASE_QUANTITY * self.target.average_price
+        purchase_price = FOOD_PURCHASE_QUANTITY * self.target.price
 
         # The crew doesn't have enough money.
         if purchase_price > self.money:
@@ -181,8 +183,11 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
             )
 
         self.money -= purchase_price
-        self.target.money += purchase_price
+        self.target.owner.money += purchase_price
         self.food += FOOD_PURCHASE_QUANTITY
+
+        # Infection interaction
+        self.interact_with(self.target.owner)
 
     @property
     def theft_success_rate(self) -> float:
@@ -200,11 +205,17 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant"]):
 
 
 if __name__ == "__main__":
-    crew = PirateCrew()
+    crew = PirateCrew(money=1000)
     pirate = Pirate(crew=crew)
 
-    from .merchant import Merchant
+    from .merchant import Item, Merchant
     from .villager import Villager
 
-    pirate.action_choice = ActionChoice.Theft
-    pirate.target = Merchant()
+    pirate.action_choice = ActionChoice.Rest
+    merchant = Merchant(money=1000)
+    merchant.inventory = [Item(merchant, price=10), Item(merchant, price=20)]
+    pirate.target = merchant
+    print(pirate.money)
+    pirate.step()
+    print(pirate.money)
+    print(pirate.target.money)

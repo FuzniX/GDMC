@@ -8,7 +8,7 @@ from .exceptions import WrongTargetError
 from .player import Player
 
 if TYPE_CHECKING:
-    from .merchant import Merchant
+    from .merchant import Item
     from .pirate import Pirate
 
 WORK_MONEY = 100
@@ -16,7 +16,7 @@ WORK_HAPPINESS = 10
 
 
 @dataclass
-class Villager(Player[VillagerActionChoice, "Pirate | Merchant"]):
+class Villager(Player[VillagerActionChoice, "Pirate | Item"]):
     happiness: int = 0
     money: int = 0
 
@@ -36,12 +36,12 @@ class Villager(Player[VillagerActionChoice, "Pirate | Merchant"]):
                 pass
 
     @property
-    def target(self) -> Optional["Pirate | Merchant"]:
+    def target(self) -> Optional["Pirate | Item"]:
         return super().target
 
     @target.setter
-    def target(self, target: Optional["Pirate | Merchant"]) -> None:
-        from .merchant import Merchant
+    def target(self, target: Optional["Pirate | Item"]) -> None:
+        from .merchant import Item
 
         # No target for Work and Barter
         if (
@@ -50,9 +50,9 @@ class Villager(Player[VillagerActionChoice, "Pirate | Merchant"]):
         ):
             raise WrongTargetError(self.action_choice)
 
-        # Target must be a Merchant for Buy
-        if self.action_choice is ActionChoice.Buy and not isinstance(target, Merchant):
-            raise WrongTargetError(ActionChoice.Buy, Merchant)
+        # Target must be an Item for Buy
+        if self.action_choice is ActionChoice.Buy and not isinstance(target, Item):
+            raise WrongTargetError(ActionChoice.Buy, Item)
 
         if Player.target.fset is not None:
             Player.target.fset(self, target)
