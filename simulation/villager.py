@@ -4,19 +4,22 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional
 
 from .enums import ActionChoice, VillagerActionChoice
-from .exceptions import WrongTargetError
+from .exceptions import ImpossibleActionError, WrongTargetError
 from .player import Player
 
 if TYPE_CHECKING:
-    from .merchant import Item
+    from .merchant import Shop
     from .pirate import Pirate
 
 WORK_MONEY = 100
 WORK_HAPPINESS = 10
 
+BARTER_FACTOR = 2
+HAPPINESS_GAIN_FACTOR = 0.15
+
 
 @dataclass
-class Villager(Player[VillagerActionChoice, "Pirate | Item"]):
+class Villager(Player[VillagerActionChoice, "Pirate | Shop"]):
     happiness: int = 0
     money: int = 0
 
@@ -29,34 +32,81 @@ class Villager(Player[VillagerActionChoice, "Pirate | Item"]):
         }
 
     @property
-    def target(self) -> Optional["Pirate | Item"]:
+    def target(self) -> Optional["Pirate | Shop"]:
         return super().target
 
     @target.setter
-    def target(self, target: Optional["Pirate | Item"]) -> None:
-        from .merchant import Item
+    def target(self, target: Optional["Pirate | Shop"]) -> None:
+        from .merchant import Shop
+        from .pirate import Pirate
 
         # No target for Work and Barter
-        if (
-            self.action_choice in [ActionChoice.Work, ActionChoice.Barter]
-            and target is not None
-        ):
+        if self.action_choice is ActionChoice.Work and target is not None:
             raise WrongTargetError(self.action_choice)
 
+        # Target must be a Pirate for Barter
+        if self.action_choice is ActionChoice.Barter and not isinstance(target, Pirate):
+            raise WrongTargetError(ActionChoice.Barter, Pirate)
+
         # Target must be an Item for Buy
-        if self.action_choice is ActionChoice.Buy and not isinstance(target, Item):
-            raise WrongTargetError(ActionChoice.Buy, Item)
+        if self.action_choice is ActionChoice.Buy and not isinstance(target, Shop):
+            raise WrongTargetError(ActionChoice.Buy, Shop)
 
         if Player.target.fset is not None:
             Player.target.fset(self, target)
 
     def work(self) -> None:
+        """
+        Increase the villager's money and happiness by WORK_MONEY and WORK_HAPPINESS respectively.
+        """
         self.money += WORK_MONEY
         self.happiness += WORK_HAPPINESS
 
-    def barter(self) -> None: ...
+    def barter(self) -> None:
+        """
+        Perform a barter with the target pirate, exchanging money and happiness.
+        """
+        from .pirate import Pirate
 
-    def buy(self) -> None: ...
+        if not isinstance(self.target, Pirate):
+            raise WrongTargetError(ActionChoice.Barter, Pirate)
+
+        price = BARTER_FACTOR * min(0, 0)  # TODO À changer
+        happiness_gain = BARTER_FACTOR * max(0, 0)  # TODO À changer
+
+        if self.money > price:
+            raise ImpossibleActionError(
+                ActionChoice.Barter, f"Not enough money: {self.money}."
+            )
+
+        self.happiness += happiness_gain
+        self.money -= price
+        self.target.money += price
+
+        self.interact_with(self.target)
+
+    def buy(self) -> None:
+        """
+        Perform a buy action with the target shop, exchanging money and happiness.
+        """
+        from .merchant import Shop
+
+        if not isinstance(self.target, Shop):
+            raise WrongTargetError(ActionChoice.Buy, Shop)
+
+        price = self.target.price
+        happiness_gain = round(HAPPINESS_GAIN_FACTOR * price)  # TODO À changer
+
+        if self.money > price:
+            raise ImpossibleActionError(
+                ActionChoice.Buy, f"Not enough money: {self.money}."
+            )
+
+        self.happiness += happiness_gain
+        self.money -= price
+        self.target.owner.money += price
+
+        self.interact_with(self.target.owner)
 
 
 if __name__ == "__main__":
