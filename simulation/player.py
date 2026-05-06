@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 
 from utils import do_with_probability
 
@@ -119,6 +119,14 @@ class Player[T: ActionChoice, U]:
         """
         return not self.dead and self.idle_period == 0
 
+    @property
+    def _action_map(self) -> dict[ActionChoice, Callable[[], None]]:
+        """
+        The action map for the player
+        :return: A dictionary mapping action choices to callables
+        """
+        return {ActionChoice.Heal: self.heal}
+
     def step(self) -> None:
         """
         Advance one step in the simulation for the player
@@ -136,6 +144,12 @@ class Player[T: ActionChoice, U]:
                 do_with_probability(MORTALITY_RATE, self.die)
         elif self.recovered:
             do_with_probability(IMMUNITY_LOSS_RATE, self.lose_immunity)
+
+        # Perform the chosen action
+        if self.can_play:
+            choice = self.action_choice
+            if choice and (act := self._action_map.get(choice)):
+                act()
 
     def heal(self) -> None:
         """
@@ -187,8 +201,8 @@ if __name__ == "__main__":
     p2 = Player()
     p = lambda: print(p1.infection_status, p2.infection_status)
 
-    p1.expose()
+    print(p1.can_play)
+    print(p1.idle_period)
+    p1.idle_period = 4
 
-    for _ in range(10):
-        p1.step()
-        p()
+    print(p1.can_play)
