@@ -1,11 +1,10 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
+import random
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional
 
 from utils import do_with_probability, probability
 
-from .enums import ActionChoice, PirateActionChoice
+from .enums import ActionChoice
 from .exceptions import ImpossibleActionError, WrongTargetError
 from .player import Player
 
@@ -23,26 +22,40 @@ class PirateCrew:
     pirates_at_sea: int = 0
 
 
-@dataclass(kw_only=True)
-class Pirate(Player[PirateActionChoice, "Villager | Merchant | Shop"]):
+@dataclass
+class Pirate(Player[Villager | Merchant | Shop]):
     """
     Class representing a pirate player in the simulation.
     """
 
     crew: PirateCrew
 
-    bounty: int = 0
+    bounty: float = 0
     food: int = 0
 
-    days_at_sea: int = 0
+    days_at_sea: int = field(init=False, default=0)
 
-    @staticmethod
-    def EXPEDITION_INFECTION_RATE(days: int, pirates: int) -> float:
-        return 0.01 * (pirates + days)
+    @property
+    def expedition_infection_rate(self) -> float:
+        return 0.01 * (self.crew.pirates_at_sea + self.days_at_sea)
 
-    @staticmethod
-    def EXPEDITION_MORTALITY_RATE(days: int, pirates: int) -> float:
-        return (0.01 * days) / pirates
+    @property
+    def expedition_mortality_rate(self) -> float:
+        return (0.01 * self.days_at_sea) / self.crew.pirates_at_sea
+
+    @property
+    def bounty_increase_rate(self) -> float:
+        return 1.05**self.days_at_sea
+
+    @property
+    def expedition_money_variation(self) -> int:
+        return 50 * self.crew.pirates_at_sea * self.days_at_sea
+
+    def at_sea(self) -> bool:
+        """
+        Returns whether the pirate is at sea or not.
+        """
+        return self.action_choice == ActionChoice.Expedition
 
     @property
     def money(self) -> int:
@@ -53,19 +66,19 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant | Shop"]):
         self.crew.money = value
 
     @property
-    def _action_map(self) -> dict[ActionChoice, Callable[[], None]]:
-        return super()._action_map | {
+    def action_map(self) -> dict[ActionChoice, Callable[[], None]]:
+        return super().action_map | {
             ActionChoice.Expedition: self.explore,
             ActionChoice.Theft: self.thief,
             ActionChoice.Rest: self.rest,
         }
 
     @property
-    def action_choice(self) -> Optional[PirateActionChoice]:
+    def action_choice(self) -> Optional[ActionChoice]:
         return super().action_choice
 
     @action_choice.setter
-    def action_choice(self, choice: Optional[PirateActionChoice]) -> None:
+    def action_choice(self, choice: Optional[ActionChoice]) -> None:
         # Reset expedition state
         if (
             self.action_choice is ActionChoice.Expedition
@@ -74,6 +87,7 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant | Shop"]):
             self.days_at_sea = 0
             self.crew.pirates_at_sea -= 1
 
+        # Add 1 to the pirate count
         elif (
             self.action_choice is not ActionChoice.Expedition
             and choice is ActionChoice.Expedition
@@ -84,11 +98,11 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant | Shop"]):
             Player.action_choice.fset(self, choice)
 
     @property
-    def target(self) -> Optional["Villager | Merchant | Shop"]:
+    def target(self) -> Optional[Villager | Merchant | Shop]:
         return super().target
 
     @target.setter
-    def target(self, target: Optional["Villager | Merchant | Shop"]) -> None:
+    def target(self, target: Optional[Villager | Merchant | Shop]) -> None:
         from .merchant import Merchant
         from .villager import Villager
 
@@ -102,7 +116,7 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant | Shop"]):
         ):
             raise WrongTargetError(ActionChoice.Theft, (Villager, Merchant))
 
-        # Item target required for rest
+        # Shop target required for rest
         if self.action_choice is ActionChoice.Rest and not (
             isinstance(target, Shop) and target.is_food
         ):
@@ -113,9 +127,18 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant | Shop"]):
         if Player.target.fset is not None:
             Player.target.fset(self, target)
 
-    @property
-    def expedition_money_variation(self) -> int:
-        return 50 * self.crew.pirates_at_sea * self.days_at_sea
+    def choose_target(self) -> None:
+        match self.action_choice:
+            case ActionChoice.Theft:
+                people = self.simulation.villagers + self.simulation.merchants
+                if people:
+                    self.target = random.choice(people)
+            case ActionChoice.Rest:
+                items = self.simulation.shops
+                if items:
+                    self.target = random.choice(items)
+            case _:
+                self.target = None
 
     def explore(self) -> None:
         """
@@ -127,19 +150,11 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant | Shop"]):
         self.money += self.expedition_money_variation
 
         # Bounty gain
-        self.bounty *= round(1.05**self.days_at_sea)
+        self.bounty *= self.bounty_increase_rate
 
         # Infection pirate-specific events
-        do_with_probability(
-            Pirate.EXPEDITION_INFECTION_RATE(
-                self.days_at_sea, self.crew.pirates_at_sea
-            ),
-            self.expose,
-        )
-        do_with_probability(
-            Pirate.EXPEDITION_MORTALITY_RATE(self.food, self.money),
-            self.die,
-        )
+        do_with_probability(self.expedition_infection_rate, self.expose)
+        do_with_probability(self.expedition_infection_rate, self.die)
 
     def thief(self) -> None:
         """
@@ -201,7 +216,7 @@ class Pirate(Player[PirateActionChoice, "Villager | Merchant | Shop"]):
         """
         The probability of successfully stealing money from a target.
         """
-        return 1.0  # TODO À changer
+        return 0.5  # TODO À changer
 
     @property
     def theft_jail_period(self) -> int:

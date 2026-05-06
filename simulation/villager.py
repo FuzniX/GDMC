@@ -1,9 +1,8 @@
-from __future__ import annotations
-
+import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional
 
-from .enums import ActionChoice, VillagerActionChoice
+from .enums import ActionChoice
 from .exceptions import ImpossibleActionError, WrongTargetError
 from .player import Player
 
@@ -19,24 +18,28 @@ HAPPINESS_GAIN_FACTOR = 0.15
 
 
 @dataclass
-class Villager(Player[VillagerActionChoice, "Pirate | Shop"]):
+class Villager(Player[Pirate | Shop]):
+    """
+    Class representing a villager player in the simulation.
+    """
+
     happiness: int = 0
     money: int = 0
 
     @property
     def _action_map(self) -> dict[ActionChoice, Callable[[], None]]:
-        return super()._action_map | {
+        return super().action_map | {
             ActionChoice.Work: self.work,
             ActionChoice.Barter: self.barter,
             ActionChoice.Buy: self.buy,
         }
 
     @property
-    def target(self) -> Optional["Pirate | Shop"]:
+    def target(self) -> Optional[Pirate | Shop]:
         return super().target
 
     @target.setter
-    def target(self, target: Optional["Pirate | Shop"]) -> None:
+    def target(self, target: Optional[Pirate | Shop]) -> None:
         from .merchant import Shop
         from .pirate import Pirate
 
@@ -55,6 +58,18 @@ class Villager(Player[VillagerActionChoice, "Pirate | Shop"]):
         if Player.target.fset is not None:
             Player.target.fset(self, target)
 
+    def choose_target(self) -> None:
+        match self.action_choice:
+            case ActionChoice.Buy:
+                items = self.simulation.shops
+                if items:
+                    self.target = random.choice(items)
+            case ActionChoice.Barter:
+                if self.simulation.pirates:
+                    self.target = random.choice(self.simulation.pirates)
+            case _:
+                self.target = None
+
     def work(self) -> None:
         """
         Increase the villager's money and happiness by WORK_MONEY and WORK_HAPPINESS respectively.
@@ -71,8 +86,8 @@ class Villager(Player[VillagerActionChoice, "Pirate | Shop"]):
         if not isinstance(self.target, Pirate):
             raise WrongTargetError(ActionChoice.Barter, Pirate)
 
-        price = BARTER_FACTOR * min(0, 0)  # TODO À changer
-        happiness_gain = BARTER_FACTOR * max(0, 0)  # TODO À changer
+        price = round(self.minimum_price() / BARTER_FACTOR)
+        happiness_gain = BARTER_FACTOR * self.maximum_happiness()
 
         if self.money > price:
             raise ImpossibleActionError(
@@ -95,7 +110,7 @@ class Villager(Player[VillagerActionChoice, "Pirate | Shop"]):
             raise WrongTargetError(ActionChoice.Buy, Shop)
 
         price = self.target.price
-        happiness_gain = round(HAPPINESS_GAIN_FACTOR * price)  # TODO À changer
+        happiness_gain = self.happiness_gain(price)
 
         if self.money > price:
             raise ImpossibleActionError(
@@ -107,6 +122,24 @@ class Villager(Player[VillagerActionChoice, "Pirate | Shop"]):
         self.target.owner.money += price
 
         self.interact_with(self.target.owner)
+
+    def happiness_gain(self, price: int) -> int:
+        """
+        Return the happiness gain for a given price.
+        """
+        return round(HAPPINESS_GAIN_FACTOR * price)
+
+    def minimum_price(self) -> int:
+        """
+        Return the minimum price of all the shops.
+        """
+        return min(shop.price for shop in self.simulation.shops)
+
+    def maximum_happiness(self) -> int:
+        """
+        Return the maximum happiness of all the players.
+        """
+        return max(self.happiness_gain(shop.price) for shop in self.simulation.shops)
 
 
 if __name__ == "__main__":

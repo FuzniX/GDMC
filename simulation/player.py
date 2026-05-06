@@ -1,10 +1,15 @@
-from dataclasses import dataclass
-from typing import Callable, Optional
+import random
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Callable, Optional
 
 from utils import do_with_probability
 
 from .enums import ActionChoice, InfectionStatus
 from .exceptions import WrongTargetError
+
+if TYPE_CHECKING:
+    from .simulation import Simulation
 
 TRANSMISSION_RATE = 0.15
 INCUBATION_RATE = 0.5
@@ -14,16 +19,19 @@ IMMUNITY_LOSS_RATE = 0.033
 
 
 @dataclass
-class Player[T: ActionChoice, U]:
+class Player[T](ABC):
     """
     Class representing a player in the simulation.
     """
 
-    infection_status: InfectionStatus = InfectionStatus.Susceptible
-    idle_period: int = 0
+    simulation: Simulation = field(init=False, repr=False)
+    infection_status: InfectionStatus = field(
+        init=False, default=InfectionStatus.Susceptible
+    )
+    idle_period: int = field(init=False, default=0)
 
-    _action_choice: Optional[T] = None
-    _target: Optional[U] = None
+    _action_choice: Optional[ActionChoice] = field(init=False, default=None)
+    _target: Optional[T] = field(init=False, default=None)
 
     def die(self) -> None:
         """
@@ -120,7 +128,7 @@ class Player[T: ActionChoice, U]:
         return not self.dead and self.idle_period == 0
 
     @property
-    def _action_map(self) -> dict[ActionChoice, Callable[[], None]]:
+    def action_map(self) -> dict[ActionChoice, Callable[[], None]]:
         """
         The action map for the player
         :return: A dictionary mapping action choices to callables
@@ -148,7 +156,7 @@ class Player[T: ActionChoice, U]:
         # Perform the chosen action
         if self.can_play:
             choice = self.action_choice
-            if choice and (act := self._action_map.get(choice)):
+            if choice and (act := self.action_map.get(choice)):
                 act()
 
     def heal(self) -> None:
@@ -159,14 +167,14 @@ class Player[T: ActionChoice, U]:
         ...
 
     @property
-    def action_choice(self) -> Optional[T]:
+    def action_choice(self) -> Optional[ActionChoice]:
         """
         :return: The chosen action for this player
         """
         return self._action_choice
 
     @action_choice.setter
-    def action_choice(self, choice: Optional[T]) -> None:
+    def action_choice(self, choice: Optional[ActionChoice]) -> None:
         """
         Set the action choice for this player
         :param choice: The action choice to set
@@ -175,30 +183,57 @@ class Player[T: ActionChoice, U]:
         self._action_choice = choice
 
     @property
-    def target(self) -> Optional[U]:
+    def target(self) -> Optional[T]:
         """
         :return: The target for the upcoming action
         """
         return self._target
 
     @target.setter
-    def target(self, target: Optional[U]) -> None:
+    def target(self, target: Optional[T]) -> None:
         """
         Set the target for the upcoming action
         :param target: The target to set
         :return: None
         """
+        # No target for None action
         if self.action_choice is None and target is not None:
             raise WrongTargetError()
+
+        # No target for Heal action
         if self.action_choice is ActionChoice.Heal and target is not None:
             raise WrongTargetError(ActionChoice.Heal)
 
+        # Cannot target a dead player
+        if isinstance(target, Player) and target.dead:
+            raise WrongTargetError(message="Cannot target a dead player.")
+
         self._target = target
+
+    def choose_action(self) -> None:
+        """
+        Choose an action for this player
+        :return: None
+        """
+        if self.can_play:
+            self.action_choice = random.choice(list(self.action_map.keys()) + [None])
+        else:
+            self.action_choice = None
+
+    @abstractmethod
+    def choose_target(self) -> None:
+        """
+        Choose a target for the upcoming action
+        :return: None
+        """
 
 
 if __name__ == "__main__":
-    p1 = Player()
-    p2 = Player()
+    from .simulation import Simulation
+
+    sim = Simulation([])
+    p1 = Player(simulation=sim)
+    p2 = Player(simulation=sim)
     p = lambda: print(p1.infection_status, p2.infection_status)
 
     print(p1.can_play)

@@ -1,85 +1,67 @@
 import random
+from dataclasses import dataclass, field
 
-from dataclasses import dataclass
+from .merchant import Merchant, Shop
+from .pirate import Pirate
+from .player import Player
+from .villager import Villager
 
-from player import Player
-from villager import Villager
-from pirate import Pirate
-from merchant import Merchant
-from merchant import Shop
-from .enums import ActionChoice, MerchantActionChoice, PirateActionChoice, VillagerActionChoice
+DAY_MAX: int = 10000
 
 
 @dataclass
 class Simulation:
     players: list[Player]
-    day: int = 0
-    DAY_MAX : int = 10000
-    item_list = list[Shop]
+
+    day: int = field(init=False)
 
     @property
-    def pirate_list(self) -> list[Pirate]:
-        return [p for p in self.players if isinstance(p, Pirate)]
-    
+    def pirates(self) -> list[Pirate]:
+        return [p for p in self.players if isinstance(p, Pirate) and not p.dead]
+
     @property
-    def villager_list(self) -> list[Villager]:
-        return [v for v in self.players if isinstance(v, Villager)]
-    
+    def villagers(self) -> list[Villager]:
+        return [v for v in self.players if isinstance(v, Villager) and not v.dead]
+
     @property
-    def merchant_list(self) -> list[Merchant]:
-        return [m for m in self.players if isinstance(m, Merchant)]
-    
+    def merchants(self) -> list[Merchant]:
+        return [m for m in self.players if isinstance(m, Merchant) and not m.dead]
+
+    def __post_init__(self) -> None:
+        # Set simulation attribute for each player
+        for player in self.players:
+            player.simulation = self
+
     @property
-    def list_of_all_items(self) -> list[Shop]:
+    def shops(self) -> list[Shop]:
         all_items = []
-        for merchant in self.merchant_list:
+        for merchant in self.merchants:
             all_items.extend(merchant.store)
         return all_items
-    
-    def random_integer(self, minimum: int, maximum: int) -> int:
-        return random.randint(minimum, maximum)
-    
 
-    def step(self,player : Player) -> None :
-        player.step()
+    @property
+    def pirates_in_expedition(self) -> list[Pirate]:
+        return [p for p in self.pirates if p.at_sea]
 
-        if isinstance(player, Villager):
-            match player.action_choice:
-                case ActionChoice.Buy:
-                    items = self.list_of_all_items
-                    if items:
-                        player.target = random.choice(items)
-                case ActionChoice.Barter:
-                    pirates = self.pirate_list
-                    if pirates:
-                        player.target = random.choice(pirates)
+    def step(self) -> None:
+        random.shuffle(self.players)  # So it's not always the same order
 
-        elif isinstance(player, Pirate):
-            match player.action_choice:
-                case ActionChoice.Theft:
-                    villagers = self.villager_list
-                    if villagers:
-                        player.target = random.choice(villagers)
-                case ActionChoice.Rest:
-                    items = self.list_of_all_items
-                    if items:
-                        player.target = random.choice(items)
+        for player in self.players:
+            player.choose_action()
 
-        elif isinstance(player, Merchant):
-            if player.store:
-                player.target = self.random_integer(1, len(player.store))
+        for player in self.players:
+            player.choose_target()
 
-        
+        for player in self.players:
+            player.step()
+
+        self.day += 1
+
     def run(self):
-        while self.day < self.DAY_MAX:
-            for player in self.players:
-                if not player.can_play:
-                    continue
-                self.step(player)
-            self.day += 1
-                
+        while self.day < DAY_MAX:
+            self.step()
+
 
 if __name__ == "__main__":
-    simulation = Simulation()
-    print(type(simulation.item_list))
-    #simulation.run()
+    simulation = Simulation([])
+    # simulation.run()
