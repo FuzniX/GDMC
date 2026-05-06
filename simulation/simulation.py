@@ -39,8 +39,6 @@ class Simulation:
     def random_integer(self, minimum: int, maximum: int) -> int:
         return random.randint(minimum, maximum)
     
-    def merchant_associated_to_player(self, player: Player) -> Merchant | None:
-        return player if isinstance(player, Merchant) else None
 
     def step(self,player : Player) -> None :
         player.step()
