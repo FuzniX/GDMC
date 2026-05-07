@@ -82,4 +82,4 @@ class Simulation:
 if __name__ == "__main__":
     simulation = Simulation()
     print(type(simulation.item_list))
-    #simulation.run()
+    simulation.run()
