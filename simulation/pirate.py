@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from .merchant import Merchant, Shop
     from .villager import Villager
 
+FOOD_REQUIRED_FOR_EXPEDITION = 1
 FOOD_PURCHASE_QUANTITY = 10  # units
 STOLEN_MONEY_RATE = 0.20  # %
 
@@ -144,6 +145,13 @@ class Pirate(Player[Villager | Merchant | Shop]):
         """
         Perform an expedition to gain money and bounty, and potentially infect the crew.
         """
+        if not self.has_enough_food:
+            raise ImpossibleActionError(
+                ActionChoice.Expedition, "Not enough food to explore."
+            )
+
+        self.food -= FOOD_REQUIRED_FOR_EXPEDITION
+
         self.days_at_sea += 1
 
         # Money gain
@@ -218,14 +226,32 @@ class Pirate(Player[Villager | Merchant | Shop]):
         """
         The probability of successfully stealing money from a target.
         """
-        return 0.5  # TODO À changer
+        assert isinstance(self.target, (Villager, Merchant))
+
+        ratio = self.bounty / self.target.money
+        return max(0.1, min(0.9, 0.5 * ratio))
 
     @property
     def theft_jail_period(self) -> int:
         """
         The amount of days spent in jail after a failed theft attempt.
         """
-        return 7  # TODO À Changer
+        assert isinstance(self.target, (Villager, Merchant))
+
+        target_severity = self.target.money // 5000
+        bounty_multiplier = 1 + (self.bounty / 10000)
+
+        total_days = (3 + target_severity) * bounty_multiplier
+
+        # Between 2 and 20 days
+        return max(2, min(20, round(total_days)))
+
+    @property
+    def has_enough_food(self) -> int:
+        """
+        Whether the pirate has enough food to be at sea.
+        """
+        return self.food >= FOOD_REQUIRED_FOR_EXPEDITION
 
 
 if __name__ == "__main__":
