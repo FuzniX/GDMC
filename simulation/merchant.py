@@ -1,10 +1,16 @@
 import random
+import json
+import os
+from pathlib import Path
+from pathlib import Path
+from typing import List, Dict, Union
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 from .enums import ActionChoice
 from .exceptions import ImpossibleActionError, WrongTargetError
 from .player import Player
+
 
 BASE_PRICE = 1000  # money
 MAX_QUANTITY = 100  # units
@@ -14,6 +20,15 @@ RESTOCK_PERCENTAGE = 10  # %
 CLOSURE_PERIOD = 3  # days
 PRICE_VARIATION = 10  # %
 NEW_ITEM_COST = 10000  # money
+
+# On récupère le dossier où se trouve merchant.py, puis on cherche items.json dedans
+CURRENT_DIR = Path(__file__).parent
+items_file = CURRENT_DIR / "items.json"
+
+if not items_file.exists():
+    raise FileNotFoundError(f"Fichier manquant : {items_file.absolute()}")
+
+available_items: List[Dict[str, Union[str, bool]]] = json.loads(items_file.read_text())
 
 
 @dataclass
@@ -25,6 +40,11 @@ class Shop:
     name: str = ""
     is_food: bool = True
 
+    @staticmethod
+    def from_item(merchant: Merchant) -> Shop:
+        my_shop = random.choice(available_items)
+        return Shop(owner=merchant,**my_shop)
+    
 
 @dataclass
 class Merchant(Player[int]):
@@ -158,4 +178,8 @@ if __name__ == "__main__":
     m = Merchant()
 
     m.action_choice = ActionChoice.Restock
-    m.target = 4
+    #m.target = 4
+    #print(os.cwd())
+    
+    print(Shop.from_item(m))
+
