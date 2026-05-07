@@ -109,10 +109,15 @@ class Merchant(Player[int]):
         if self.target is not None:
             raise WrongTargetError(ActionChoice.Restock)
 
+        cost = self.restock_cost
+
+        if self.money < cost:
+            raise ImpossibleActionError(ActionChoice.Restock, message=f"Not enough money to restock. Cost: {cost}, Money: {self.money}")
+
         for item in self.store:
             item.owned_quantity = item.max_quantity
 
-        self.money -= round(self.money * RESTOCK_PERCENTAGE / 100)
+        self.money -=
         self.closure_period = CLOSURE_PERIOD
 
     def increase_price(self) -> None:
@@ -150,7 +155,7 @@ class Merchant(Player[int]):
 
         cost = self.new_item_cost
 
-        if len(self.store) == 5:
+        if len(self.store) == MAX_ITEMS:
             raise ImpossibleActionError(
                 ActionChoice.SellNewItem,
                 message=f"Cannot shop more than {MAX_ITEMS} items.",
@@ -172,6 +177,13 @@ class Merchant(Player[int]):
         Return the cost of selling a new item.
         """
         return (len(self.store) + 1) * NEW_ITEM_COST
+
+    @property
+    def restock_cost(self) -> int:
+        """
+        Return the cost of restocking the inventory.
+        """
+        return round(self.money * RESTOCK_PERCENTAGE / 100)
 
 
 if __name__ == "__main__":
