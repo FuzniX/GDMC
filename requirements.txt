@@ -1,2 +1,4 @@
 gdpc
 pytest
+numpy
+matplotlib
