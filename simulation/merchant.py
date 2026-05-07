@@ -1,7 +1,8 @@
+import random
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from .enums import ActionChoice, MerchantActionChoice
+from .enums import ActionChoice
 from .exceptions import ImpossibleActionError, WrongTargetError
 from .player import Player
 
@@ -26,14 +27,18 @@ class Shop:
 
 
 @dataclass
-class Merchant(Player[MerchantActionChoice, int]):
+class Merchant(Player[int]):
+    """
+    Class representing a merchant player in the simulation.
+    """
+
     money: int = 0
     store: list[Shop] = field(default_factory=list)
-    closure_period: int = 0
+    closure_period: int = field(init=False, default=0)
 
     @property
-    def _action_map(self) -> dict[ActionChoice, Callable[[], None]]:
-        return super()._action_map | {
+    def action_map(self) -> dict[ActionChoice, Callable[[], None]]:
+        return super().action_map | {
             ActionChoice.Restock: self.restock,
             ActionChoice.IncreasePrice: self.increase_price,
             ActionChoice.DecreasePrice: self.decrease_price,
@@ -69,6 +74,14 @@ class Merchant(Player[MerchantActionChoice, int]):
         if Player.target.fset is not None:
             Player.target.fset(self, target)
 
+    def choose_target(self) -> None:
+        match self.action_choice:
+            case ActionChoice.IncreasePrice | ActionChoice.DecreasePrice:
+                if self.store:
+                    self.target = random.randint(1, len(self.store))
+            case _:
+                self.target = None
+
     def restock(self) -> None:
         """
         Restock the merchant's inventory to full capacity and deduct a percentage of the money.
@@ -87,6 +100,7 @@ class Merchant(Player[MerchantActionChoice, int]):
         Increase the price of the merchant's items by INCREASE_PRICE_PERCENTAGE.
         """
         if not isinstance(self.target, int):
+            assert self.action_choice is ActionChoice.IncreasePrice
             raise WrongTargetError(
                 message=f"Target must be an integer between {MIN_ITEMS} and {MAX_ITEMS} for {self.action_choice.value} action."
             )
@@ -99,6 +113,7 @@ class Merchant(Player[MerchantActionChoice, int]):
         Decrease the price of the merchant's items by DECREASE_PRICE_PERCENTAGE.
         """
         if not isinstance(self.target, int):
+            assert self.action_choice is ActionChoice.DecreasePrice
             raise WrongTargetError(
                 message=f"Target must be an integer between {MIN_ITEMS} and {MAX_ITEMS} for {self.action_choice.value} action."
             )
@@ -137,12 +152,6 @@ class Merchant(Player[MerchantActionChoice, int]):
         Return the cost of selling a new item.
         """
         return (len(self.store) + 1) * NEW_ITEM_COST
-
-    @property
-    def average_price(self) -> int:
-        if not self.store:
-            return 0
-        return round(sum(item.price for item in self.store) / len(self.store))
 
 
 if __name__ == "__main__":
