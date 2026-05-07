@@ -1,26 +1,23 @@
 from random import randint
 
-from gdpc import Editor, Block, geometry
+from gdpc import Block, Editor, geometry
 from matplotlib import pyplot as plt
 
-from house import House
-from utils import ingame_exception
-from village import Village
+from ..utils import ingame_exception
+from .house import House
+from .village import Village
 
 
 def house():
     House(
         editor=editor,
-
         x=buildArea.offset.x + 1,
         y=editor.worldSlice.heightmaps["MOTION_BLOCKING_NO_LEAVES"][3, 1] - 1,
         z=buildArea.offset.z + 1,
-
         height=randint(3, 7),
         depth=randint(3, 10),
         width=randint(2, 5) * 2,
         rotation=randint(0, 3),
-
         floorPalette=[
             Block("stone_bricks"),
             Block("cracked_stone_bricks"),
@@ -64,7 +61,7 @@ def village():
             [Block("dark_oak_stairs"), Block("dark_oak_planks")],
             [Block("cobblestone_stairs"), Block("cobblestone")],
         ],
-        houseNumber=25
+        houseNumber=25,
     )
 
     village.build()
@@ -80,7 +77,7 @@ def main():
     village()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     editor = Editor(buffering=True)
     buildArea = editor.getBuildArea()
 

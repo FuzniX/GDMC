@@ -3,10 +3,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional
 
-from utils import do_with_probability
-
+from ..utils import do_with_probability
 from .enums import ActionChoice, InfectionStatus
-from .exceptions import WrongTargetError,ImpossibleActionError
+from .exceptions import ImpossibleActionError, WrongTargetError
 
 if TYPE_CHECKING:
     from .simulation import Simulation

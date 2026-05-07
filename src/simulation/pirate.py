@@ -2,8 +2,7 @@ import random
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional
 
-from utils import do_with_probability, probability
-
+from ..utils import do_with_probability, probability
 from .enums import ActionChoice
 from .exceptions import ImpossibleActionError, WrongTargetError
 from .player import Player
