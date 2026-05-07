@@ -156,6 +156,8 @@ class Pirate(Player[Villager | Merchant | Shop]):
         do_with_probability(self.expedition_infection_rate, self.expose)
         do_with_probability(self.expedition_infection_rate, self.die)
 
+        self.interact_with(random.choice(self.simulation.pirates_in_expedition))
+
     def thief(self) -> None:
         """
         Attempt to steal money from a villager or merchant.
