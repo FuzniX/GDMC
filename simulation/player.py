@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Callable, Optional
 from utils import do_with_probability
 
 from .enums import ActionChoice, InfectionStatus
-from .exceptions import WrongTargetError
+from .exceptions import WrongTargetError,ImpossibleActionError
 
 if TYPE_CHECKING:
     from .simulation import Simulation
@@ -157,7 +157,10 @@ class Player[T](ABC):
         if self.can_play:
             choice = self.action_choice
             if choice and (act := self.action_map.get(choice)):
-                act()
+                try:
+                    act()
+                except ImpossibleActionError:
+                    pass
 
     def heal(self) -> None:
         """

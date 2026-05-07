@@ -135,9 +135,9 @@ class Pirate(Player[Villager | Merchant | Shop]):
                 if people:
                     self.target = random.choice(people)
             case ActionChoice.Rest:
-                items = self.simulation.shops
-                if items:
-                    self.target = random.choice(items)
+                food_shops = [s for s in self.simulation.shops if s.is_food]
+                if food_shops:
+                    self.target = random.choice(food_shops)
             case _:
                 self.target = None
 

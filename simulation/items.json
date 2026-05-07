@@ -1,0 +1,162 @@
+[
+  {
+    "name": "apple",
+    "is_food": true
+  },
+  {
+    "name": "bread",
+    "is_food": true
+  },
+  {
+    "name": "cooked_chicken",
+    "is_food": true
+  },
+  {
+    "name": "golden_apple",
+    "is_food": true
+  },
+  {
+    "name": "mushroom_stew",
+    "is_food": true
+  },
+  {
+    "name": "baked_potato",
+    "is_food": true
+  },
+  {
+    "name": "cooked_porkchop",
+    "is_food": true
+  },
+  {
+    "name": "pumpkin_pie",
+    "is_food": true
+  },
+  {
+    "name": "rabbit_stew",
+    "is_food": true
+  },
+  {
+    "name": "cooked_cod",
+    "is_food": true
+  },
+  {
+    "name": "cooked_salmon",
+    "is_food": true
+  },
+  {
+    "name": "carrot",
+    "is_food": true
+  },
+  {
+    "name": "chorus_fruit",
+    "is_food": true
+  },
+  {
+    "name": "beetroot_soup",
+    "is_food": true
+  },
+  {
+    "name": "glistering_melon_slice",
+    "is_food": true
+  },
+  {
+    "name": "suspicious_stew",
+    "is_food": true
+  },
+  {
+    "name": "tropical_fish",
+    "is_food": true
+  },
+  {
+    "name": "cake",
+    "is_food": true
+  },
+  {
+    "name": "beef",
+    "is_food": true
+  },
+  {
+    "name": "poisonous_potato",
+    "is_food": true
+  },
+  {
+    "name": "netherite_ingot",
+    "is_food": false
+  },
+  {
+    "name": "ender_pearl",
+    "is_food": false
+  },
+  {
+    "name": "blaze_rod",
+    "is_food": false
+  },
+  {
+    "name": "slime_ball",
+    "is_food": false
+  },
+  {
+    "name": "lapis_lazuli",
+    "is_food": false
+  },
+  {
+    "name": "bedrock",
+    "is_food": false
+  },
+  {
+    "name": "anvil",
+    "is_food": false
+  },
+  {
+    "name": "enchanting_table",
+    "is_food": false
+  },
+  {
+    "name": "brewing_stand",
+    "is_food": false
+  },
+  {
+    "name": "beacon",
+    "is_food": false
+  },
+  {
+    "name": "trident",
+    "is_food": false
+  },
+  {
+    "name": "elytra",
+    "is_food": false
+  },
+  {
+    "name": "shulker_box",
+    "is_food": false
+  },
+  {
+    "name": "spyglass",
+    "is_food": false
+  },
+  {
+    "name": "copper_ingot",
+    "is_food": false
+  },
+  {
+    "name": "amethyst_shard",
+    "is_food": false
+  },
+  {
+    "name": "glowstone_dust",
+    "is_food": false
+  },
+  {
+    "name": "sticky_piston",
+    "is_food": false
+  },
+  {
+    "name": "repeating_command_block",
+    "is_food": false
+  },
+  {
+    "name": "end_crystal",
+    "is_food": false
+  }
+]
