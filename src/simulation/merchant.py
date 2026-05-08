@@ -10,12 +10,19 @@ from .player import Player
 
 BASE_PRICE = 1000  # money
 MAX_QUANTITY = 100  # units
+BASE_OWNED_QUANTITY = 0  # units
+DEFAULT_ITEM_NAME = ""
+DEFAULT_IS_FOOD = True
+
 MIN_ITEMS = 1  # units
 MAX_ITEMS = 5  # units
 RESTOCK_PERCENTAGE = 10  # %
 CLOSURE_PERIOD = 3  # days
 PRICE_VARIATION = 10  # %
 NEW_ITEM_COST = 10000  # money
+
+DEFAULT_MONEY = 0
+DEFAULT_CLOSURE_PERIOD = 0
 
 # Search for parent folder then retrieve file
 ITEMS_FILE_PATH = Path(__file__).parent / "items.json"
@@ -32,9 +39,9 @@ class Shop:
     owner: "Merchant"
     price: int = BASE_PRICE
     max_quantity: int = MAX_QUANTITY
-    owned_quantity: int = 0
-    name: str = ""
-    is_food: bool = True
+    owned_quantity: int = BASE_OWNED_QUANTITY
+    name: str = DEFAULT_ITEM_NAME
+    is_food: bool = DEFAULT_IS_FOOD
 
     @staticmethod
     def from_item(owner: "Merchant") -> "Shop":
@@ -47,9 +54,9 @@ class Merchant(Player[int]):
     Class representing a merchant player in the simulation.
     """
 
-    money: int = 0
+    money: int = DEFAULT_MONEY
     store: list[Shop] = field(default_factory=list)
-    closure_period: int = field(init=False, default=0)
+    closure_period: int = field(init=False, default=DEFAULT_CLOSURE_PERIOD)
 
     @property
     def action_map(self) -> dict[ActionChoice, Callable[[], None]]:

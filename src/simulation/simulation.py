@@ -7,6 +7,7 @@ from .player import Player
 from .villager import Villager
 
 DAY_MAX: int = 10000
+DEFAULT_PIRATE_MONEY: int = 0
 
 
 @dataclass
@@ -18,6 +19,7 @@ class Simulation:
     players: list[Player]
 
     day: int = field(init=False)
+    pirate_money: int = field(init=False, default=DEFAULT_PIRATE_MONEY)
 
     @property
     def pirates(self) -> list[Pirate]:

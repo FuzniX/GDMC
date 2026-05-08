@@ -16,6 +16,11 @@ RECOVERY_RATE = 0.1
 MORTALITY_RATE = 0.01
 IMMUNITY_LOSS_RATE = 0.033
 
+DEFAULT_INFECTION_STATUS = InfectionStatus.Susceptible
+DEFAULT_IDLE_PERIOD = 0
+DEFAULT_ACTION_CHOICE = None
+DEFAULT_TARGET = None
+
 
 @dataclass
 class Player[T](ABC):
@@ -25,12 +30,14 @@ class Player[T](ABC):
 
     simulation: Simulation = field(init=False, repr=False)
     infection_status: InfectionStatus = field(
-        init=False, default=InfectionStatus.Susceptible
+        init=False, default=DEFAULT_INFECTION_STATUS
     )
-    idle_period: int = field(init=False, default=0)
+    idle_period: int = field(init=False, default=DEFAULT_IDLE_PERIOD)
 
-    _action_choice: Optional[ActionChoice] = field(init=False, default=None)
-    _target: Optional[T] = field(init=False, default=None)
+    _action_choice: Optional[ActionChoice] = field(
+        init=False, default=DEFAULT_ACTION_CHOICE
+    )
+    _target: Optional[T] = field(init=False, default=DEFAULT_TARGET)
 
     def die(self) -> None:
         """
@@ -234,8 +241,8 @@ if __name__ == "__main__":
     from .simulation import Simulation
 
     sim = Simulation([])
-    p1 = Player(simulation=sim)
-    p2 = Player(simulation=sim)
+    p1 = Player()
+    p2 = Player()
     p = lambda: print(p1.infection_status, p2.infection_status)
 
     print(p1.can_play)
