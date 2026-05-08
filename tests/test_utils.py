@@ -9,9 +9,10 @@ def test_probability(random_probability: float):
 
 
 @pytest.mark.repeat(100)
-def test_do_with_probability(random_probability: float):
-    expected_result = 42
-
+@pytest.mark.parametrize("expected_result", [42, "Hello world!", None])
+def test_do_with_probability(
+    random_probability: float, expected_result: int | str | None
+):
     result, done = do_with_probability(random_probability, lambda: expected_result)
 
     assert isinstance(done, bool)
