@@ -47,7 +47,7 @@ class Merchant(Player[int]):
     Class representing a merchant player in the simulation.
     """
 
-    money: int = 0
+    _money: int = 0
     store: list[Shop] = field(default_factory=list)
     closure_period: int = field(init=False, default=0)
 
@@ -63,6 +63,14 @@ class Merchant(Player[int]):
     def step(self) -> None:
         super().step()
         self.closure_period = max(0, self.closure_period - 1)
+
+    @property
+    def money(self) -> int:
+        return self._money
+
+    @money.setter
+    def money(self, value: int) -> None:
+        self._money = value
 
     @property
     def target(self) -> Optional[int]:
