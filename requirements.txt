@@ -1,4 +1,5 @@
 gdpc
 pytest
+pytest-repeat
 numpy
 matplotlib
