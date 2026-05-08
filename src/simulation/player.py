@@ -21,6 +21,9 @@ DEFAULT_IDLE_PERIOD = 0
 DEFAULT_ACTION_CHOICE = None
 DEFAULT_TARGET = None
 
+HEAL_COST_FACTOR = 50
+HEAL_IDLE_PERIOD = 7
+
 
 @dataclass
 class Player[T](ABC):
@@ -173,7 +176,29 @@ class Player[T](ABC):
         Heal the player
         :return: None
         """
-        ...
+        cost = self.heal_cost
+
+        if self.money < cost:
+            raise ImpossibleActionError(ActionChoice.Heal, "Not enough money to heal")
+
+        self.money -= cost
+        self.idle_period = HEAL_IDLE_PERIOD
+
+    @property
+    def heal_cost(self) -> int:
+        """
+        :return: The cost of healing
+        """
+        shops = self.simulation.shops
+        return round(HEAL_COST_FACTOR * (sum(s.price for s in shops) / len(shops)))
+
+    @property
+    @abstractmethod
+    def money(self) -> int: ...
+
+    @money.setter
+    @abstractmethod
+    def money(self, value: int) -> None: ...
 
     @property
     def action_choice(self) -> Optional[ActionChoice]:

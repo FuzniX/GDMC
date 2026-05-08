@@ -27,7 +27,7 @@ class Villager(Player[Pirate | Shop]):
     """
 
     happiness: int = DEFAULT_HAPPINESS
-    money: int = DEFAULT_MONEY
+    _money: int = DEFAULT_MONEY
 
     @property
     def _action_map(self) -> dict[ActionChoice, Callable[[], None]]:
@@ -36,6 +36,14 @@ class Villager(Player[Pirate | Shop]):
             ActionChoice.Barter: self.barter,
             ActionChoice.Buy: self.buy,
         }
+
+    @property
+    def money(self) -> int:
+        return self._money
+
+    @money.setter
+    def money(self, value: int) -> None:
+        self._money = value
 
     @property
     def target(self) -> Optional[Pirate | Shop]:
