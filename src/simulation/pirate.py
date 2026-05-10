@@ -13,9 +13,6 @@ if TYPE_CHECKING:
     from .merchant import Merchant, Shop
     from .villager import Villager
 
-
-logger = get_sim_logger()
-
 FOOD_REQUIRED_FOR_EXPEDITION = 1
 FOOD_PURCHASE_QUANTITY = 10  # units
 STOLEN_MONEY_RATE = 0.20  # %
@@ -23,6 +20,8 @@ STOLEN_MONEY_RATE = 0.20  # %
 DEFAULT_BOUNTY = 0
 DEFAULT_FOOD = 0
 DEFAULT_DAYS_AT_SEA = 0
+
+logger = get_sim_logger()
 
 
 @dataclass

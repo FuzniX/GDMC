@@ -4,14 +4,14 @@ from dataclasses import dataclass, field
 from log.config import get_sim_logger, setup_logging
 
 from .merchant import Merchant, Shop
-from .pirate import Pirate, PirateCrew
+from .pirate import Pirate
 from .player import Player
 from .villager import Villager
 
-logger = get_sim_logger()
-
 DAY_MAX: int = 10000
 DEFAULT_PIRATE_MONEY: int = 0
+
+logger = get_sim_logger()
 
 
 @dataclass
@@ -103,15 +103,12 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    crew = PirateCrew(money=500)
     m1 = Merchant(_money=2000)
     for _ in range(3):
         m1.store.append(Shop.from_item(owner=m1))
     m1.store[0].is_food = True
     m1.store[0].owned_quantity = 100
 
-    sim = Simulation(
-        [Pirate(crew=crew, food=10), m1, Villager(_money=100, happiness=50)]
-    )
+    sim = Simulation([Pirate(food=10), m1, Villager(_money=100, happiness=50)])
 
     sim.run()

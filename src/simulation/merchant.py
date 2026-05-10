@@ -10,8 +10,6 @@ from .enums import ActionChoice
 from .exceptions import ImpossibleActionError, WrongTargetError
 from .player import Player
 
-logger = get_sim_logger()
-
 BASE_PRICE = 1000  # money
 MAX_QUANTITY = 100  # units
 BASE_OWNED_QUANTITY = 0  # units
@@ -31,6 +29,8 @@ DEFAULT_CLOSURE_PERIOD = 0
 # Search for parent folder then retrieve file
 ITEMS_FILE_PATH = Path(__file__).parent / "items.json"
 AVAILABLE_ITEMS: list["Item"] = json.loads(ITEMS_FILE_PATH.read_text())
+
+logger = get_sim_logger()
 
 
 class Item(TypedDict):

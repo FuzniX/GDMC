@@ -12,8 +12,6 @@ from .exceptions import ImpossibleActionError, WrongTargetError
 if TYPE_CHECKING:
     from .simulation import Simulation
 
-logger = get_sim_logger()
-
 TRANSMISSION_RATE = 0.15
 INCUBATION_RATE = 0.5
 RECOVERY_RATE = 0.10
@@ -27,6 +25,8 @@ DEFAULT_TARGET = None
 
 HEAL_COST_FACTOR = 50
 HEAL_IDLE_PERIOD = 7
+
+logger = get_sim_logger()
 
 
 @dataclass
