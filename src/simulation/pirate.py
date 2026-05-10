@@ -20,11 +20,9 @@ FOOD_REQUIRED_FOR_EXPEDITION = 1
 FOOD_PURCHASE_QUANTITY = 10  # units
 STOLEN_MONEY_RATE = 0.20  # %
 
-
-@dataclass
-class PirateCrew:
-    money: int = 0
-    pirates_at_sea: int = 0
+DEFAULT_BOUNTY = 0
+DEFAULT_FOOD = 0
+DEFAULT_DAYS_AT_SEA = 0
 
 
 @dataclass
@@ -33,20 +31,18 @@ class Pirate(Player["Villager | Merchant | Shop"]):
     Class representing a pirate player in the simulation.
     """
 
-    crew: PirateCrew
+    bounty: float = DEFAULT_BOUNTY
+    food: int = DEFAULT_FOOD
 
-    bounty: float = 0
-    food: int = 0
-
-    days_at_sea: int = field(init=False, default=0)
+    days_at_sea: int = field(init=False, default=DEFAULT_DAYS_AT_SEA)
 
     @property
     def expedition_infection_rate(self) -> float:
-        return 0.01 * (self.crew.pirates_at_sea + self.days_at_sea)
+        return 0.01 * (len(self.simulation.pirates_in_expedition) + self.days_at_sea)
 
     @property
     def expedition_mortality_rate(self) -> float:
-        return (0.01 * self.days_at_sea) / self.crew.pirates_at_sea
+        return (0.01 * self.days_at_sea) / len(self.simulation.pirates_in_expedition)
 
     @property
     def bounty_increase_rate(self) -> float:
@@ -54,8 +50,9 @@ class Pirate(Player["Villager | Merchant | Shop"]):
 
     @property
     def expedition_money_variation(self) -> int:
-        return 50 * self.crew.pirates_at_sea * self.days_at_sea
+        return 50 * len(self.simulation.pirates_in_expedition) * self.days_at_sea
 
+    @property
     def at_sea(self) -> bool:
         """
         Returns whether the pirate is at sea or not.
@@ -64,11 +61,11 @@ class Pirate(Player["Villager | Merchant | Shop"]):
 
     @property
     def money(self) -> int:
-        return self.crew.money
+        return self.simulation.pirate_money
 
     @money.setter
     def money(self, value: int) -> None:
-        self.crew.money = value
+        self.simulation.pirate_money = value
 
     @property
     def action_map(self) -> dict[ActionChoice, Callable[[], None]]:
@@ -90,14 +87,6 @@ class Pirate(Player["Villager | Merchant | Shop"]):
             and choice is not ActionChoice.Expedition
         ):
             self.days_at_sea = 0
-            self.crew.pirates_at_sea -= 1
-
-        # Add 1 to the pirate count
-        elif (
-            self.action_choice is not ActionChoice.Expedition
-            and choice is ActionChoice.Expedition
-        ):
-            self.crew.pirates_at_sea += 1
 
         if Player.action_choice.fset is not None:
             Player.action_choice.fset(self, choice)

@@ -20,6 +20,11 @@ RECOVERY_RATE = 0.10
 MORTALITY_RATE = 0.01
 IMMUNITY_LOSS_RATE = 0.033
 
+DEFAULT_INFECTION_STATUS = InfectionStatus.Susceptible
+DEFAULT_IDLE_PERIOD = 0
+DEFAULT_ACTION_CHOICE = None
+DEFAULT_TARGET = None
+
 HEAL_COST_FACTOR = 50
 HEAL_IDLE_PERIOD = 7
 
@@ -32,12 +37,14 @@ class Player[T](ABC):
 
     simulation: Simulation = field(init=False, repr=False)
     infection_status: InfectionStatus = field(
-        init=False, default=InfectionStatus.Susceptible
+        init=False, default=DEFAULT_INFECTION_STATUS
     )
-    idle_period: int = field(init=False, default=0)
+    idle_period: int = field(init=False, default=DEFAULT_IDLE_PERIOD)
 
-    _action_choice: Optional[ActionChoice] = field(init=False, default=None)
-    _target: Optional[T] = field(init=False, default=None)
+    _action_choice: Optional[ActionChoice] = field(
+        init=False, default=DEFAULT_ACTION_CHOICE
+    )
+    _target: Optional[T] = field(init=False, default=DEFAULT_TARGET)
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__} {id(self)}"

@@ -18,6 +18,9 @@ WORK_HAPPINESS = 10
 BARTER_FACTOR = 2
 HAPPINESS_GAIN_FACTOR = 0.15
 
+DEFAULT_HAPPINESS = 0
+DEFAULT_MONEY = 0
+
 logger = get_sim_logger()
 
 
@@ -27,8 +30,8 @@ class Villager(Player["Pirate | Shop"]):
     Class representing a villager player in the simulation.
     """
 
-    happiness: int = 0
-    _money: int = 0
+    happiness: int = DEFAULT_HAPPINESS
+    _money: int = DEFAULT_MONEY
 
     @property
     def _action_map(self) -> dict[ActionChoice, Callable[[], None]]:

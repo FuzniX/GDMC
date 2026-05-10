@@ -11,6 +11,7 @@ from .villager import Villager
 logger = get_sim_logger()
 
 DAY_MAX: int = 10000
+DEFAULT_PIRATE_MONEY: int = 0
 
 
 @dataclass
@@ -22,6 +23,7 @@ class Simulation:
     players: list[Player]
 
     day: int = field(init=False, default=0)
+    pirate_money: int = field(init=False, default=DEFAULT_PIRATE_MONEY)
 
     @property
     def pirates(self) -> list[Pirate]:
