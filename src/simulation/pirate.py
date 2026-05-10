@@ -70,7 +70,7 @@ class Pirate(Player["Villager | Merchant | Shop"]):
     def action_map(self) -> dict[ActionChoice, Callable[[], None]]:
         return super().action_map | {
             ActionChoice.Expedition: self.explore,
-            ActionChoice.Theft: self.thief,
+            ActionChoice.Theft: self.steal,
             ActionChoice.Rest: self.rest,
         }
 
@@ -159,11 +159,7 @@ class Pirate(Player["Villager | Merchant | Shop"]):
         if pirates_at_sea:
             self.interact_with(random.choice(pirates_at_sea))
 
-        logger.action(
-            f"State of the pirate {self} during expedition. Day at the sea : {self.days_at_sea}, Bounty : {self.bounty}, Crew Balance: {self.crew.money}"
-        )
-
-    def thief(self) -> None:
+    def steal(self) -> None:
         """
         Attempt to steal money from a villager or merchant.
         """
@@ -176,7 +172,10 @@ class Pirate(Player["Villager | Merchant | Shop"]):
 
         if not probability(self.theft_success_rate):
             self.idle_period = self.theft_jail_period
-            logger.action(f"theft FAILURE: {self} in jail for {self.idle_period} days.")
+            logger.info(
+                f"Failure: {self} goes in jail for {self.idle_period} days.",
+                theme="THEFT",
+            )
             return
 
         stolen_money = round(STOLEN_MONEY_RATE * self.target.money)
@@ -186,9 +185,8 @@ class Pirate(Player["Villager | Merchant | Shop"]):
 
         self.interact_with(self.target)
 
-        logger.action(
-            f"theft SUCCESS: {self} stole {stolen_money}."
-            f"Pirate Balance: {self.money}, Victim Balance: {self.target.money}"
+        logger.info(
+            f"Success: {self} stole {stolen_money} from {self.target}.", theme="THEFT"
         )
 
     def rest(self) -> None:
@@ -197,15 +195,13 @@ class Pirate(Player["Villager | Merchant | Shop"]):
         """
         from .merchant import Shop
 
-        if self.target is None or not isinstance(
-            self.target, Shop
-        ):  # Should never be the case, but security check
-            raise WrongTargetError(ActionChoice.Rest, Shop)
+        # Should never be the case, but security check
+        if not isinstance(self.target, Shop) or not self.target.is_food:
+            raise WrongTargetError(
+                ActionChoice.Rest, Shop, "The target is not a food shop."
+            )
 
         purchase_price = FOOD_PURCHASE_QUANTITY * self.target.price
-
-        if not self.target.is_food:
-            raise ImpossibleActionError(self, "The target is not a food shop.")
 
         # The crew doesn't have enough money.
         if purchase_price > self.money:
@@ -227,7 +223,6 @@ class Pirate(Player["Villager | Merchant | Shop"]):
 
         # Infection interaction
         self.interact_with(self.target.owner)
-        logger.action(f"{self} bought {self.target}. Balance: {self.money} ")
 
     @property
     def theft_success_rate(self) -> float:
@@ -267,3 +262,7 @@ class Pirate(Player["Villager | Merchant | Shop"]):
         Whether the pirate has enough food to be at sea.
         """
         return self.food >= FOOD_REQUIRED_FOR_EXPEDITION
+
+    @property
+    def log(self) -> str:
+        return super().log + (f",{self.bounty},{self.food},{self.days_at_sea}")

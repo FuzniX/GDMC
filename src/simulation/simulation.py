@@ -3,13 +3,33 @@ from dataclasses import dataclass, field
 
 from log.config import get_sim_logger, setup_logging
 
-from .merchant import Merchant, Shop
+from .merchant import MAX_ITEMS, Merchant, Shop
 from .pirate import Pirate
 from .player import Player
 from .villager import Villager
 
 DAY_MAX: int = 10000
 DEFAULT_PIRATE_MONEY: int = 0
+
+columns = [
+    "day",
+    "type",
+    "id",
+    "infection_status",
+    "action_choice",
+    "target",
+    "idle_period",
+    "money",
+    "happiness",
+    "bounty",
+    "food",
+    "days_at_sea",
+    "closure_period",
+] + [
+    f"{k}{i + 1}"
+    for i in range(MAX_ITEMS)
+    for k in ["price", "owned_quantity", "max_quantity", "name", "is_food"]
+]
 
 logger = get_sim_logger()
 
@@ -90,12 +110,17 @@ class Simulation:
         for player in self.players:
             player.step()
 
+        # Log the state of the simulation
+        for player in self.players:
+            logger.stats(player.log)
+
     def run(self):
         """
         Run the simulation until the day limit is reached.
         """
         logger.info("BEGIN")
 
+        logger.stats(",".join(columns))
         while self.day < DAY_MAX:
             self.step()
 

@@ -42,21 +42,31 @@ class Item(TypedDict):
 class Shop:
     owner: "Merchant" = field(repr=False)
     price: int = BASE_PRICE
-    max_quantity: int = MAX_QUANTITY
     owned_quantity: int = BASE_OWNED_QUANTITY
+    max_quantity: int = MAX_QUANTITY
     name: str = DEFAULT_ITEM_NAME
     is_food: bool = DEFAULT_IS_FOOD
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__} {id(self)}"
+        return f"{self.__class__.__name__}({id(self)})"
 
     @staticmethod
     def from_item(owner: "Merchant") -> "Shop":
         return Shop(owner, **random.choice(AVAILABLE_ITEMS))
 
+    @property
+    def log(self) -> str:
+        return (
+            f"{self.price}"
+            f",{self.owned_quantity}"
+            f",{self.max_quantity}"
+            f",{self.name}"
+            f",{self.is_food}"
+        )
+
 
 @dataclass
-class Merchant(Player[int]):
+class Merchant(Player[Shop]):
     """
     Class representing a merchant player in the simulation.
     """
@@ -87,11 +97,11 @@ class Merchant(Player[int]):
         self._money = value
 
     @property
-    def target(self) -> Optional[int]:
+    def target(self) -> Optional[Shop]:
         return super().target
 
     @target.setter
-    def target(self, target: Optional[int]) -> None:
+    def target(self, target: Optional[Shop]) -> None:
         # No target for Restock and SellNewItem
         if (
             self.action_choice in [ActionChoice.Restock, ActionChoice.SellNewItem]
@@ -99,13 +109,13 @@ class Merchant(Player[int]):
         ):
             raise WrongTargetError(self.action_choice)
 
-        # Target must be an integer between MIN_ITEMS and MAX_ITEMS for IncreasePrice and DecreasePrice
-        if self.action_choice in [
-            ActionChoice.IncreasePrice,
-            ActionChoice.DecreasePrice,
-        ] and not (isinstance(target, int) and (MIN_ITEMS <= target <= MAX_ITEMS)):
+        # Target must be a shop from the merchant's store for IncreasePrice and DecreasePrice
+        if (
+            self.action_choice is ActionChoice.IncreasePrice
+            or self.action_choice is ActionChoice.DecreasePrice
+        ) and (not isinstance(target, Shop) or target not in self.store):
             raise WrongTargetError(
-                message=f"Target must be an integer between {MIN_ITEMS} and {MAX_ITEMS} for {self.action_choice.value} action."
+                message=f"Target must be a shop from the merchant's store for {self.action_choice.name} action."
             )
 
         if Player.target.fset is not None:
@@ -115,7 +125,7 @@ class Merchant(Player[int]):
         match self.action_choice:
             case ActionChoice.IncreasePrice | ActionChoice.DecreasePrice:
                 if self.store:
-                    self.target = random.randint(1, len(self.store))
+                    self.target = random.choice(self.store)
             case _:
                 self.target = None
 
@@ -139,35 +149,30 @@ class Merchant(Player[int]):
 
         self.money -= cost
         self.closure_period = CLOSURE_PERIOD
-        logger.action(f"{self} restocked. Balance: {self._money}")
 
     def increase_price(self) -> None:
         """
         Increase the price of the merchant's items by INCREASE_PRICE_PERCENTAGE.
         """
-        if not isinstance(self.target, int):
+        if not isinstance(self.target, Shop) or self.target not in self.store:
             assert self.action_choice is ActionChoice.IncreasePrice
             raise WrongTargetError(
-                message=f"Target must be an integer between {MIN_ITEMS} and {MAX_ITEMS} for {self.action_choice.value} action."
+                message=f"Target must be a shop from the merchant's store for {self.action_choice.value} action."
             )
 
-        item = self.store[self.target - 1]
-        item.price = round(item.price * (1 + PRICE_VARIATION / 100))
-        logger.action(f"{self} increased the price of {item}.")
+        self.target.price = round(self.target.price * (1 + PRICE_VARIATION / 100))
 
     def decrease_price(self) -> None:
         """
         Decrease the price of the merchant's items by DECREASE_PRICE_PERCENTAGE.
         """
-        if not isinstance(self.target, int):
+        if not isinstance(self.target, Shop) or self.target not in self.store:
             assert self.action_choice is ActionChoice.DecreasePrice
             raise WrongTargetError(
-                message=f"Target must be an integer between {MIN_ITEMS} and {MAX_ITEMS} for {self.action_choice.value} action."
+                message=f"Target must be a shop from the merchant's store for {self.action_choice.value} action."
             )
 
-        item = self.store[self.target - 1]
-        item.price = round(item.price * (1 - PRICE_VARIATION / 100))
-        logger.action(f"{self} decreased the price of {item}.")
+        self.target.price = round(self.target.price * (1 - PRICE_VARIATION / 100))
 
     def sell_new_item(self) -> None:
         """
@@ -193,7 +198,6 @@ class Merchant(Player[int]):
         self.money -= cost
 
         self.store.append(Shop.from_item(owner=self))
-        logger.action(f"{self} bought {self.store[-1].name}. Balance : {self._money}")
 
     @property
     def new_item_cost(self) -> int:
@@ -208,3 +212,11 @@ class Merchant(Player[int]):
         Return the cost of restocking the inventory.
         """
         return round(self.money * RESTOCK_PERCENTAGE / 100)
+
+    @property
+    def log(self) -> str:
+        return (
+            super().log
+            + f",,,,{self.closure_period},"
+            + ",".join(shop.log for shop in self.store)
+        )

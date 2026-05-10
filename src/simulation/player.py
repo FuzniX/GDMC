@@ -47,7 +47,7 @@ class Player[T](ABC):
     _target: Optional[T] = field(init=False, default=DEFAULT_TARGET)
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__} {id(self)}"
+        return f"{self.__class__.__name__}({id(self)})"
 
     def die(self) -> None:
         """
@@ -131,15 +131,15 @@ class Player[T](ABC):
         :param other: The other player with whom to interact
         :return: None
         """
-        logger.info(f"{self} has interacted with {other}.", theme="INFECTION")
+        logger.info(f"{self} interacted with {other}.", theme="INFECTION")
+
         if self.susceptible:
-            if not other.infected:
-                return
-            do_with_probability(TRANSMISSION_RATE, self.expose)
+            if other.infected:
+                do_with_probability(TRANSMISSION_RATE, self.expose)
+
         elif self.infected:
-            if not other.susceptible:
-                return
-            do_with_probability(TRANSMISSION_RATE, other.expose)
+            if other.susceptible:
+                do_with_probability(TRANSMISSION_RATE, other.expose)
 
     @property
     def can_play(self) -> bool:
@@ -181,8 +181,15 @@ class Player[T](ABC):
             if choice and (act := self.action_map.get(choice)):
                 try:
                     act()
-                except ImpossibleActionError:
-                    pass
+                    logger.action(
+                        f"{self} performed {choice.name} action. Target: {self.target}"
+                    )
+                except ImpossibleActionError as e:
+                    logger.action_failure(str(e))
+            else:
+                logger.action(f"{self} did not perform any action.")
+        else:
+            logger.action(f"{self} cannot perform any action.")
 
     def heal(self) -> None:
         """
@@ -196,10 +203,6 @@ class Player[T](ABC):
 
         self.money -= cost
         self.idle_period = HEAL_IDLE_PERIOD
-
-        logger.infection(
-            f"HEAL: {self} is healing. Balance: {self.money}. Idle for {HEAL_IDLE_PERIOD} days."
-        )
 
     @property
     def heal_cost(self) -> int:
@@ -279,3 +282,19 @@ class Player[T](ABC):
         Choose a target for the upcoming action
         :return: None
         """
+
+    @property
+    def log(self) -> str:
+        """
+        :return: The log string for this player
+        """
+        return (
+            f"{self.simulation.day},"
+            f"{self.__class__.__name__},"
+            f"{id(self)},"
+            f"{self.infection_status.name},"
+            f"{'' if self.action_choice is None else self.action_choice.name},"
+            f"{'' if self.target is None else self.target},"
+            f"{self.idle_period},"
+            f"{self.money},"
+        )

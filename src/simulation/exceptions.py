@@ -1,13 +1,9 @@
 from typing import TYPE_CHECKING, Optional
 
-from log.config import get_sim_logger
-
 from .enums import ActionChoice
 
 if TYPE_CHECKING:
     from .player import Player
-
-logger = get_sim_logger()
 
 
 class WrongTargetError(Exception):
@@ -51,5 +47,4 @@ class ImpossibleActionError(Exception):
         full_message = f"{player} cannot perform {player.action_choice.name} action."
         full_message += f" Reason: {reason}" if reason else ""
 
-        logger.action_failure(full_message)
         super().__init__(full_message)

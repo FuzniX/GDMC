@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from src.simulation.simulation import Simulation
 
 
-class SimulationContextFilter(logging.Filter):
+class SimulationDayFilter(logging.Filter):
     """Filter that injects current simulation day in each log."""
 
     def __init__(self, simulation: Simulation):
@@ -19,6 +19,20 @@ class SimulationContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord):
         record.day = getattr(self.simulation, "day", 0)
         return True
+
+
+class StatsFilter(logging.Filter):
+    """Filter that only accepts 'STATS' logs."""
+
+    def filter(self, record):
+        return getattr(record, "theme", None) == "STATS"
+
+
+class GameFilter(logging.Filter):
+    """Filter that excludes 'STATS' logs."""
+
+    def filter(self, record):
+        return getattr(record, "theme", None) != "STATS"
 
 
 class SimulationLoggerAdapter(logging.LoggerAdapter):
@@ -53,6 +67,9 @@ class SimulationLoggerAdapter(logging.LoggerAdapter):
     def action_failure(self, msg, *args, **kwargs):
         self.info(msg, *args, theme="ACTION_FAILURE", **kwargs)
 
+    def stats(self, msg, *args, **kwargs):
+        self.info(msg, *args, theme="STATS", **kwargs)
+
 
 def get_sim_logger(name: Optional[str] = None):
     """Function to retrieve adapted logger."""
@@ -60,22 +77,29 @@ def get_sim_logger(name: Optional[str] = None):
 
 
 def setup_logging(simulation: Simulation):
-    # File path
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    log_path = os.path.join(current_dir, "simulation.log")
-
-    logging.getLogger().handlers = []
-
-    log_format = "[Day %(day)s] - [%(theme)s] %(message)s"
-
-    logging.basicConfig(
-        filename=log_path,
-        filemode="w",
-        level=logging.INFO,
-        format=log_format,
-        force=True,
-    )
-
-    # Add filter to root logger
     root_logger = logging.getLogger()
-    root_logger.addFilter(SimulationContextFilter(simulation))
+    root_logger.setLevel(logging.INFO)
+    root_logger.handlers = []  # Cleaning
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Simulation events config
+    game_handler = logging.FileHandler(
+        os.path.join(current_dir, "simulation.log"), mode="w"
+    )
+    game_handler.setFormatter(
+        logging.Formatter("[Day %(day)s] - [%(theme)s] %(message)s")
+    )
+    game_handler.addFilter(GameFilter())  # Only game events
+    root_logger.addHandler(game_handler)
+
+    # Statistics config
+    stats_handler = logging.FileHandler(
+        os.path.join(current_dir, "statistics.log"), mode="w"
+    )
+    stats_handler.setFormatter(logging.Formatter("%(message)s"))
+    stats_handler.addFilter(StatsFilter())  # Only statistics
+    root_logger.addHandler(stats_handler)
+
+    # add simulation day filter
+    root_logger.addFilter(SimulationDayFilter(simulation))
