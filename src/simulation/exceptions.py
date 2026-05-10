@@ -1,6 +1,13 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+from log.config import get_sim_logger
 
 from .enums import ActionChoice
+
+if TYPE_CHECKING:
+    from .player import Player
+
+logger = get_sim_logger()
 
 
 class WrongTargetError(Exception):
@@ -18,7 +25,7 @@ class WrongTargetError(Exception):
                 if action_choice is None:
                     message = "Cannot set a target when no action is chosen."
                 else:
-                    message = f"Cannot set a target for {action_choice.value} action."
+                    message = f"Cannot set a target for {action_choice.name} action."
 
             # Target was passed but it's not one of the intended types
             elif action_choice is not None:
@@ -28,7 +35,7 @@ class WrongTargetError(Exception):
                     else str(intended_target)
                 )
                 message = (
-                    f"Target must be {target_string} for {action_choice.value} action."
+                    f"Target must be {target_string} for {action_choice.name} action."
                 )
 
         super().__init__(message)
@@ -37,7 +44,12 @@ class WrongTargetError(Exception):
 class ImpossibleActionError(Exception):
     def __init__(
         self,
-        action_choice: ActionChoice,
-        message: Optional[str] = None,
+        player: Player,
+        reason: Optional[str] = None,
     ) -> None:
-        super().__init__(f"Cannot perform {action_choice.value} action.\n\n{message}")
+        assert player.action_choice is not None
+        full_message = f"{player} cannot perform {player.action_choice.name} action."
+        full_message += f" Reason: {reason}" if reason else ""
+
+        logger.action_failure(full_message)
+        super().__init__(full_message)

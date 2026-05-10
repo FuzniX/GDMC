@@ -2,6 +2,8 @@ import random
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional
 
+from log.config import get_sim_logger
+
 from .enums import ActionChoice
 from .exceptions import ImpossibleActionError, WrongTargetError
 from .player import Player
@@ -15,6 +17,8 @@ WORK_HAPPINESS = 10
 
 BARTER_FACTOR = 2
 HAPPINESS_GAIN_FACTOR = 0.15
+
+logger = get_sim_logger()
 
 
 @dataclass
@@ -85,6 +89,10 @@ class Villager(Player["Pirate | Shop"]):
         self.money += WORK_MONEY
         self.happiness += WORK_HAPPINESS
 
+        logger.action(
+            f"{self} is working. Balance: {self.money}, Happiness: {self.happiness}"
+        )
+
     def barter(self) -> None:
         """
         Perform a barter with the target pirate, exchanging money and happiness.
@@ -98,15 +106,17 @@ class Villager(Player["Pirate | Shop"]):
         happiness_gain = BARTER_FACTOR * self.maximum_happiness()
 
         if self.money > price:
-            raise ImpossibleActionError(
-                ActionChoice.Barter, f"Not enough money: {self.money}."
-            )
+            raise ImpossibleActionError(self, f"Not enough money: {self.money}.")
 
         self.happiness += happiness_gain
         self.money -= price
         self.target.money += price
 
         self.interact_with(self.target)
+
+        logger.action(
+            f"{self} barted {self.target}). Villager Balance: {self.money} and Crew Money: {self.target.money}"
+        )
 
     def buy(self) -> None:
         """
@@ -122,7 +132,7 @@ class Villager(Player["Pirate | Shop"]):
 
         if self.money > price:
             raise ImpossibleActionError(
-                ActionChoice.Buy, f"Not enough money: {self.money}."
+                self, f"Not enough money: ({self.money}/{price})."
             )
 
         self.happiness += happiness_gain
@@ -130,6 +140,10 @@ class Villager(Player["Pirate | Shop"]):
         self.target.owner.money += price
 
         self.interact_with(self.target.owner)
+
+        logger.action(
+            f"{self} bought {self.target}). Villager Balance: {self.money}, Villager Happiness: {self.happiness}, Merchant Balance: {self.target.owner.money}, Shop stock: {self.target.owned_quantity}"
+        )
 
     def happiness_gain(self, price: int) -> int:
         """
@@ -148,7 +162,3 @@ class Villager(Player["Pirate | Shop"]):
         Return the maximum happiness of all the players.
         """
         return max(self.happiness_gain(shop.price) for shop in self.simulation.shops)
-
-
-if __name__ == "__main__":
-    v = Villager()

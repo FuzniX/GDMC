@@ -1,16 +1,16 @@
 import json
 import random
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional, TypedDict
+
+from log.config import get_sim_logger
 
 from .enums import ActionChoice
 from .exceptions import ImpossibleActionError, WrongTargetError
 from .player import Player
 
-
-logger = logging.getLogger(__name__)
+logger = get_sim_logger()
 
 BASE_PRICE = 1000  # money
 MAX_QUANTITY = 100  # units
@@ -33,12 +33,15 @@ class Item(TypedDict):
 
 @dataclass
 class Shop:
-    owner: "Merchant"
+    owner: "Merchant" = field(repr=False)
     price: int = BASE_PRICE
     max_quantity: int = MAX_QUANTITY
     owned_quantity: int = 0
     name: str = ""
     is_food: bool = True
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__} {id(self)}"
 
     @staticmethod
     def from_item(owner: "Merchant") -> "Shop":
@@ -120,8 +123,8 @@ class Merchant(Player[int]):
 
         if self.money < cost:
             raise ImpossibleActionError(
-                ActionChoice.Restock,
-                message=f"Not enough money to restock. Cost: {cost}, Money: {self.money}",
+                self,
+                f"Not enough money to restock. Cost: {cost}, Money: {self.money}",
             )
 
         for item in self.store:
@@ -129,7 +132,7 @@ class Merchant(Player[int]):
 
         self.money -= cost
         self.closure_period = CLOSURE_PERIOD
-        logger.info(f"Merchant {self} restocked. Balance: {self._money}")
+        logger.action(f"{self} restocked. Balance: {self._money}")
 
     def increase_price(self) -> None:
         """
@@ -143,7 +146,7 @@ class Merchant(Player[int]):
 
         item = self.store[self.target - 1]
         item.price = round(item.price * (1 + PRICE_VARIATION / 100))
-        logger.info(f"Merchant {id(self)} increased the price of {item}.")
+        logger.action(f"{self} increased the price of {item}.")
 
     def decrease_price(self) -> None:
         """
@@ -157,7 +160,7 @@ class Merchant(Player[int]):
 
         item = self.store[self.target - 1]
         item.price = round(item.price * (1 - PRICE_VARIATION / 100))
-        logger.info(f"Merchant {id(self)} decreased the price of {item}.")
+        logger.action(f"{self} decreased the price of {item}.")
 
     def sell_new_item(self) -> None:
         """
@@ -169,23 +172,21 @@ class Merchant(Player[int]):
         cost = self.new_item_cost
 
         if len(self.store) == MAX_ITEMS:
-            logger.warning(f"sell new item FAILURE: Merchant {id(self)} already have {MAX_ITEMS} items")
             raise ImpossibleActionError(
-                ActionChoice.SellNewItem,
-                message=f"Cannot shop more than {MAX_ITEMS} items.",
+                self,
+                f"Cannot shop more than {MAX_ITEMS} items.",
             )
 
         if self.money < cost:
-            logger.warning(f"sell new item FAILURE: Merchant {id(self)} doesn't have enough money (cost: {cost}, money: {self.money}) ")
             raise ImpossibleActionError(
-                ActionChoice.SellNewItem,
-                message=f"Not enough money to sell a new item (cost: {cost}, money: {self.money}).",
+                self,
+                f"Not enough money ({self.money}/{cost}).",
             )
 
         self.money -= cost
 
         self.store.append(Shop.from_item(owner=self))
-        logger.info(f"Merchant {id(self)} bought {self.store[-1].name}. Balance : {self._money}")
+        logger.action(f"{self} bought {self.store[-1].name}. Balance : {self._money}")
 
     @property
     def new_item_cost(self) -> int:
@@ -200,12 +201,3 @@ class Merchant(Player[int]):
         Return the cost of restocking the inventory.
         """
         return round(self.money * RESTOCK_PERCENTAGE / 100)
-
-
-if __name__ == "__main__":
-    m = Merchant()
-
-    m.action_choice = ActionChoice.Restock
-    # m.target = 4
-
-    print(Shop.from_item(m))

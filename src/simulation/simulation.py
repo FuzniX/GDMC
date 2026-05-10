@@ -1,13 +1,14 @@
 import random
 from dataclasses import dataclass, field
-import logging
+
+from log.config import get_sim_logger, setup_logging
 
 from .merchant import Merchant, Shop
-from .pirate import Pirate
+from .pirate import Pirate, PirateCrew
 from .player import Player
 from .villager import Villager
 
-logger = logging.getLogger(__name__)
+logger = get_sim_logger()
 
 DAY_MAX: int = 10000
 
@@ -48,6 +49,8 @@ class Simulation:
         for player in self.players:
             player.simulation = self
 
+        setup_logging(self)
+
     @property
     def shops(self) -> list[Shop]:
         """
@@ -69,6 +72,8 @@ class Simulation:
         """
         Advance the simulation by one step.
         """
+        self.day += 1
+
         random.shuffle(self.players)  # So it's not always the same order
 
         # Each player chooses an action
@@ -83,16 +88,28 @@ class Simulation:
         for player in self.players:
             player.step()
 
-        self.day += 1
-
     def run(self):
         """
         Run the simulation until the day limit is reached.
         """
+        logger.info("BEGIN")
+
         while self.day < DAY_MAX:
             self.step()
 
+        logger.info("END")
+
 
 if __name__ == "__main__":
-    simulation = Simulation([])
-    # simulation.run()
+    crew = PirateCrew(money=500)
+    m1 = Merchant(_money=2000)
+    for _ in range(3):
+        m1.store.append(Shop.from_item(owner=m1))
+    m1.store[0].is_food = True
+    m1.store[0].owned_quantity = 100
+
+    sim = Simulation(
+        [Pirate(crew=crew, food=10), m1, Villager(_money=100, happiness=50)]
+    )
+
+    sim.run()

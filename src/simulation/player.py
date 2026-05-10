@@ -1,8 +1,9 @@
 import random
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional
+
+from log.config import get_sim_logger
 
 from ..utils import do_with_probability
 from .enums import ActionChoice, InfectionStatus
@@ -11,7 +12,7 @@ from .exceptions import ImpossibleActionError, WrongTargetError
 if TYPE_CHECKING:
     from .simulation import Simulation
 
-logger = logging.getLogger(__name__)
+logger = get_sim_logger()
 
 TRANSMISSION_RATE = 0.15
 INCUBATION_RATE = 0.5
@@ -38,13 +39,16 @@ class Player[T](ABC):
     _action_choice: Optional[ActionChoice] = field(init=False, default=None)
     _target: Optional[T] = field(init=False, default=None)
 
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__} {id(self)}"
+
     def die(self) -> None:
         """
         Makes the player die
         :return: None
         """
         self.infection_status = InfectionStatus.Dead
-        logger.error(f"DEATH: Player {id(self)} has died.")
+        logger.infection(self)
 
     @property
     def dead(self) -> bool:
@@ -60,7 +64,7 @@ class Player[T](ABC):
         :return: None
         """
         self.infection_status = InfectionStatus.Exposed
-        logger.info(f"EXPOSURE: Player {id(self)}")
+        logger.infection(self)
 
     @property
     def exposed(self) -> bool:
@@ -76,7 +80,7 @@ class Player[T](ABC):
         :return: None
         """
         self.infection_status = InfectionStatus.Infected
-        logger.warning(f"INFECTION: Player {id(self)} is now infected!")
+        logger.infection(self)
 
     @property
     def infected(self) -> bool:
@@ -92,7 +96,7 @@ class Player[T](ABC):
         :return: None
         """
         self.infection_status = InfectionStatus.Recovered
-        logger.info(f"RECOVERY: Player {id(self)} has recovered and is now immune.")
+        logger.infection(self)
 
     @property
     def recovered(self) -> bool:
@@ -104,6 +108,7 @@ class Player[T](ABC):
 
     def lose_immunity(self) -> None:
         self.infection_status = InfectionStatus.Susceptible
+        logger.infection(self)
 
     @property
     def susceptible(self) -> bool:
@@ -119,6 +124,7 @@ class Player[T](ABC):
         :param other: The other player with whom to interact
         :return: None
         """
+        logger.info(f"{self} has interacted with {other}.", theme="INFECTION")
         if self.susceptible:
             if not other.infected:
                 return
@@ -179,13 +185,14 @@ class Player[T](ABC):
         cost = self.heal_cost
 
         if self.money < cost:
-            logger.warning(f"heal FAILURE: Player {id(self)} not enough money ({self.money}/{cost})")
-            raise ImpossibleActionError(ActionChoice.Heal, "Not enough money to heal")
+            raise ImpossibleActionError(self, f"Not enough money ({self.money}/{cost})")
 
         self.money -= cost
         self.idle_period = HEAL_IDLE_PERIOD
 
-        logger.info(f"HEAL: Player {id(self)} is healing. Balance: {self.money}. Idle for {HEAL_IDLE_PERIOD} days.")
+        logger.infection(
+            f"HEAL: {self} is healing. Balance: {self.money}. Idle for {HEAL_IDLE_PERIOD} days."
+        )
 
     @property
     def heal_cost(self) -> int:
@@ -199,7 +206,7 @@ class Player[T](ABC):
 
     @property
     @abstractmethod
-    def money(self) -> int: ... 
+    def money(self) -> int: ...
 
     @money.setter
     @abstractmethod
@@ -265,18 +272,3 @@ class Player[T](ABC):
         Choose a target for the upcoming action
         :return: None
         """
-
-
-if __name__ == "__main__":
-    from .simulation import Simulation
-
-    sim = Simulation([])
-    p1 = Player(simulation=sim)
-    p2 = Player(simulation=sim)
-    p = lambda: print(p1.infection_status, p2.infection_status)
-
-    print(p1.can_play)
-    print(p1.idle_period)
-    p1.idle_period = 4
-
-    print(p1.can_play)
