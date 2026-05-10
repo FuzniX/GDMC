@@ -1,6 +1,7 @@
 import random
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional
+import logging
 
 from ..utils import do_with_probability, probability
 from .enums import ActionChoice
@@ -10,6 +11,9 @@ from .player import Player
 if TYPE_CHECKING:
     from .merchant import Merchant, Shop
     from .villager import Villager
+
+
+logger = logging.getLogger(__name__)
 
 FOOD_REQUIRED_FOR_EXPEDITION = 1
 FOOD_PURCHASE_QUANTITY = 10  # units
@@ -23,7 +27,7 @@ class PirateCrew:
 
 
 @dataclass
-class Pirate(Player[Villager | Merchant | Shop]):
+class Pirate(Player["Villager | Merchant | Shop"]):
     """
     Class representing a pirate player in the simulation.
     """
@@ -103,7 +107,7 @@ class Pirate(Player[Villager | Merchant | Shop]):
 
     @target.setter
     def target(self, target: Optional[Villager | Merchant | Shop]) -> None:
-        from .merchant import Merchant
+        from .merchant import Merchant, Shop
         from .villager import Villager
 
         # No target for expedition
@@ -145,6 +149,7 @@ class Pirate(Player[Villager | Merchant | Shop]):
         Perform an expedition to gain money and bounty, and potentially infect the crew.
         """
         if not self.has_enough_food:
+            logger.warning(f"explore FAILURE: Pirate {id(self)} doesn't have enough food.")
             raise ImpossibleActionError(
                 ActionChoice.Expedition, "Not enough food to explore."
             )
@@ -163,17 +168,27 @@ class Pirate(Player[Villager | Merchant | Shop]):
         do_with_probability(self.expedition_infection_rate, self.expose)
         do_with_probability(self.expedition_infection_rate, self.die)
 
-        self.interact_with(random.choice(self.simulation.pirates_in_expedition))
+        pirates_at_sea = self.simulation.pirates_in_expedition
+
+        if pirates_at_sea:
+            self.interact_with(random.choice(pirates_at_sea))
+
+        logger.info(f"State of the pirate {id(self)} during expedition. Day at the sea : {self.days_at_sea}, Bounty : {self.bounty}, Crew Balance: {self.crew.money}")
 
     def thief(self) -> None:
         """
         Attempt to steal money from a villager or merchant.
         """
+
+        from .villager import Villager
+        from .merchant import Merchant
+
         if self.target is None or not isinstance(self.target, (Villager, Merchant)):
             raise WrongTargetError(ActionChoice.Theft, (Villager, Merchant))
 
         if not probability(self.theft_success_rate):
             self.idle_period = self.theft_jail_period
+            logger.warning(f"theft FAILURE: Pirate {self} in jail for {self.idle_period} days.")
             return
 
         stolen_money = round(STOLEN_MONEY_RATE * self.target.money)
@@ -183,6 +198,10 @@ class Pirate(Player[Villager | Merchant | Shop]):
 
         self.interact_with(self.target)
 
+        logger.info(
+            f"theft SUCCESS: Pirate {id(self)} stole {stolen_money}."
+            f"Pirate Balance: {self.money}, Victim Balance: {self.target.money}"
+        )
     def rest(self) -> None:
         """
         Rest in the village and buy food in exchange of money.
@@ -203,12 +222,14 @@ class Pirate(Player[Villager | Merchant | Shop]):
 
         # The crew doesn't have enough money.
         if purchase_price > self.money:
+            logger.warning(f"rest FAILURE: not enough money. Pirate {id(self)} Balance: {self.money} ")
             raise ImpossibleActionError(
                 ActionChoice.Rest, "Not enough money to buy food at the merchant."
             )
 
         # Not enough food to buy at the merchant.
         if FOOD_PURCHASE_QUANTITY > self.target.owned_quantity:
+            logger.warning(f"rest FAILURE: not enough food to buy at the merchant. Merchant {id(self.target.owner)} Stock: {self.target.owned_quantity} ")
             raise ImpossibleActionError(
                 ActionChoice.Rest, "Not enough food to buy at the merchant."
             )
@@ -219,12 +240,16 @@ class Pirate(Player[Villager | Merchant | Shop]):
 
         # Infection interaction
         self.interact_with(self.target.owner)
+        logger.info(f"Pirate {id(self)} bought {self.target}. Balance: {self.money} ")
 
     @property
     def theft_success_rate(self) -> float:
         """
         The probability of successfully stealing money from a target.
         """
+        from .villager import Villager
+        from .merchant import Merchant
+
         assert isinstance(self.target, (Villager, Merchant))
 
         ratio = self.bounty / self.target.money
@@ -235,6 +260,10 @@ class Pirate(Player[Villager | Merchant | Shop]):
         """
         The amount of days spent in jail after a failed theft attempt.
         """
+
+        from .villager import Villager
+        from .merchant import Merchant
+
         assert isinstance(self.target, (Villager, Merchant))
 
         target_severity = self.target.money // 5000

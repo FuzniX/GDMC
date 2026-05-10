@@ -1,4 +1,5 @@
 import random
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional
@@ -10,9 +11,11 @@ from .exceptions import ImpossibleActionError, WrongTargetError
 if TYPE_CHECKING:
     from .simulation import Simulation
 
+logger = logging.getLogger(__name__)
+
 TRANSMISSION_RATE = 0.15
 INCUBATION_RATE = 0.5
-RECOVERY_RATE = 0.1
+RECOVERY_RATE = 0.10
 MORTALITY_RATE = 0.01
 IMMUNITY_LOSS_RATE = 0.033
 
@@ -41,6 +44,7 @@ class Player[T](ABC):
         :return: None
         """
         self.infection_status = InfectionStatus.Dead
+        logger.error(f"DEATH: Player {id(self)} has died.")
 
     @property
     def dead(self) -> bool:
@@ -56,6 +60,7 @@ class Player[T](ABC):
         :return: None
         """
         self.infection_status = InfectionStatus.Exposed
+        logger.info(f"EXPOSURE: Player {id(self)}")
 
     @property
     def exposed(self) -> bool:
@@ -71,6 +76,7 @@ class Player[T](ABC):
         :return: None
         """
         self.infection_status = InfectionStatus.Infected
+        logger.warning(f"INFECTION: Player {id(self)} is now infected!")
 
     @property
     def infected(self) -> bool:
@@ -86,6 +92,7 @@ class Player[T](ABC):
         :return: None
         """
         self.infection_status = InfectionStatus.Recovered
+        logger.info(f"RECOVERY: Player {id(self)} has recovered and is now immune.")
 
     @property
     def recovered(self) -> bool:
@@ -172,10 +179,13 @@ class Player[T](ABC):
         cost = self.heal_cost
 
         if self.money < cost:
+            logger.warning(f"heal FAILURE: Player {id(self)} not enough money ({self.money}/{cost})")
             raise ImpossibleActionError(ActionChoice.Heal, "Not enough money to heal")
 
         self.money -= cost
         self.idle_period = HEAL_IDLE_PERIOD
+
+        logger.info(f"HEAL: Player {id(self)} is healing. Balance: {self.money}. Idle for {HEAL_IDLE_PERIOD} days.")
 
     @property
     def heal_cost(self) -> int:
@@ -183,11 +193,13 @@ class Player[T](ABC):
         :return: The cost of healing
         """
         shops = self.simulation.shops
-        return round(HEAL_COST_FACTOR * (sum(s.price for s in shops) / len(shops)))
+        if len(shops) != 0:
+            return round(HEAL_COST_FACTOR * (sum(s.price for s in shops) / len(shops)))
+        return HEAL_COST_FACTOR * (sum(s.price for s in shops))
 
     @property
     @abstractmethod
-    def money(self) -> int: ...
+    def money(self) -> int: ... 
 
     @money.setter
     @abstractmethod

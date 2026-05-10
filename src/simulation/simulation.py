@@ -1,10 +1,13 @@
 import random
 from dataclasses import dataclass, field
+import logging
 
 from .merchant import Merchant, Shop
 from .pirate import Pirate
 from .player import Player
 from .villager import Villager
+
+logger = logging.getLogger(__name__)
 
 DAY_MAX: int = 10000
 
@@ -17,7 +20,7 @@ class Simulation:
 
     players: list[Player]
 
-    day: int = field(init=False)
+    day: int = field(init=False, default=0)
 
     @property
     def pirates(self) -> list[Pirate]:
