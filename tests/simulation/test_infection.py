@@ -116,8 +116,8 @@ def test_susceptible(player: ConcretePlayer, reset_status: InfectionStatus):
     assert player.susceptible
 
 
-@pytest.mark.parametrize("status_self", list(InfectionStatus))
-@pytest.mark.parametrize("status_other", list(InfectionStatus))
+@pytest.mark.parametrize("status_self", InfectionStatus)
+@pytest.mark.parametrize("status_other", InfectionStatus)
 def test_interaction(
     monkeypatch: pytest.MonkeyPatch,
     status_self: InfectionStatus,

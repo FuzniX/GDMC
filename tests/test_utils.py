@@ -1,3 +1,5 @@
+from typing import Any, Optional
+
 import pytest
 
 from src.utils import do_with_probability, probability
@@ -10,9 +12,7 @@ def test_probability(random_probability: float):
 
 @pytest.mark.repeat(100)
 @pytest.mark.parametrize("expected_result", [42, "Hello world!", None])
-def test_do_with_probability(
-    random_probability: float, expected_result: int | str | None
-):
+def test_do_with_probability(random_probability: float, expected_result: Optional[Any]):
     result, done = do_with_probability(random_probability, lambda: expected_result)
 
     assert isinstance(done, bool)
