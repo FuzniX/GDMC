@@ -35,6 +35,7 @@ class Player[T](ABC):
     Class representing a player in the simulation.
     """
 
+    id: int
     simulation: Simulation = field(init=False, repr=False)
     infection_status: InfectionStatus = field(
         init=False, default=DEFAULT_INFECTION_STATUS
@@ -47,7 +48,7 @@ class Player[T](ABC):
     _target: Optional[T] = field(init=False, default=DEFAULT_TARGET)
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}({id(self)})"
+        return f"{self.__class__.__name__}({self.id})"
 
     def die(self) -> None:
         """
@@ -291,7 +292,7 @@ class Player[T](ABC):
         return (
             f"{self.simulation.day},"
             f"{self.__class__.__name__},"
-            f"{id(self)},"
+            f"{self.id},"
             f"{self.infection_status.name},"
             f"{'' if self.action_choice is None else self.action_choice.name},"
             f"{'' if self.target is None else self.target},"

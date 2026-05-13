@@ -138,30 +138,39 @@ class Simulation:
         Creates a simulation with the specified number of villagers, merchants, and pirates.
         """
         players = []
+        i = 1
 
         # Villagers
         for _ in range(nb_villagers):
             v = Villager(
+                id=i,
                 happiness=random.randint(0, 1000),
                 _money=random.randint(0, 10000),
             )
             players.append(v)
+            i += 1
 
         # Merchants
         for _ in range(nb_merchants):
-            m = Merchant(_money=random.randint(0, 50000))
+            m = Merchant(
+                id=i,
+                _money=random.randint(0, 50000),
+            )
             nb_shops = random.randint(1, MAX_ITEMS)
             for _ in range(nb_shops):
                 m.store.append(Shop.from_item(owner=m))
             players.append(m)
+            i += 1
 
         # Pirates
         for _ in range(nb_pirates):
             p = Pirate(
+                id=i,
                 bounty=random.randint(0, 10000),
                 food=random.randint(0, 100),
             )
             players.append(p)
+            i += 1
 
         return Simulation(players=players, days=days)
 
