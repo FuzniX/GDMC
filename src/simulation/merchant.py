@@ -157,7 +157,7 @@ class Merchant(Player[Shop]):
         if not isinstance(self.target, Shop) or self.target not in self.store:
             assert self.action_choice is ActionChoice.IncreasePrice
             raise WrongTargetError(
-                message=f"Target must be a shop from the merchant's store for {self.action_choice.value} action."
+                message=f"Target must be a shop from the merchant's store for {self.action_choice.name} action."
             )
 
         self.target.price = round(self.target.price * (1 + PRICE_VARIATION / 100))
@@ -169,7 +169,7 @@ class Merchant(Player[Shop]):
         if not isinstance(self.target, Shop) or self.target not in self.store:
             assert self.action_choice is ActionChoice.DecreasePrice
             raise WrongTargetError(
-                message=f"Target must be a shop from the merchant's store for {self.action_choice.value} action."
+                message=f"Target must be a shop from the merchant's store for {self.action_choice.name} action."
             )
 
         self.target.price = round(self.target.price * (1 - PRICE_VARIATION / 100))

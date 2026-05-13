@@ -9,7 +9,7 @@ from .player import Player
 from .villager import Villager
 
 DAY_MAX: int = 10000
-DEFAULT_PIRATE_MONEY: int = 0
+DEFAULT_PIRATE_MONEY: int = 50000
 
 columns = [
     "day",
@@ -41,6 +41,7 @@ class Simulation:
     """
 
     players: list[Player]
+    days: int = DAY_MAX
 
     day: int = field(init=False, default=0)
     pirate_money: int = field(init=False, default=DEFAULT_PIRATE_MONEY)
@@ -121,19 +122,54 @@ class Simulation:
         logger.info("BEGIN")
 
         logger.stats(",".join(columns))
-        while self.day < DAY_MAX:
+        while self.day < self.days:
             self.step()
 
         logger.info("END")
 
+    @staticmethod
+    def generate(
+        nb_villagers: int = 1,
+        nb_merchants: int = 1,
+        nb_pirates: int = 1,
+        days: int = DAY_MAX,
+    ) -> "Simulation":
+        """
+        Creates a simulation with the specified number of villagers, merchants, and pirates.
+        """
+        players = []
+
+        # Villagers
+        for _ in range(nb_villagers):
+            v = Villager(
+                happiness=random.randint(0, 1000),
+                _money=random.randint(0, 10000),
+            )
+            players.append(v)
+
+        # Merchants
+        for _ in range(nb_merchants):
+            m = Merchant(_money=random.randint(0, 50000))
+            nb_shops = random.randint(1, MAX_ITEMS)
+            for _ in range(nb_shops):
+                m.store.append(Shop.from_item(owner=m))
+            players.append(m)
+
+        # Pirates
+        for _ in range(nb_pirates):
+            p = Pirate(
+                bounty=random.randint(0, 10000),
+                food=random.randint(0, 100),
+            )
+            players.append(p)
+
+        return Simulation(players=players, days=days)
+
 
 if __name__ == "__main__":
-    m1 = Merchant(_money=2000)
-    for _ in range(3):
-        m1.store.append(Shop.from_item(owner=m1))
-    m1.store[0].is_food = True
-    m1.store[0].owned_quantity = 100
-
-    sim = Simulation([Pirate(food=10), m1, Villager(_money=100, happiness=50)])
-
-    sim.run()
+    Simulation.generate(
+        nb_villagers=20,
+        nb_merchants=20,
+        nb_pirates=20,
+        days=100,
+    ).run()
