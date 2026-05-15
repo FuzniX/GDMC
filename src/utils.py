@@ -1,8 +1,19 @@
 import traceback
-from random import random
+from random import random, shuffle
 from typing import Callable
 
-from gdpc import Editor
+from gdpc.block import Block
+from gdpc.editor import Editor
+
+
+def ingame_print(editor: Editor, text: str) -> None:
+    """
+    Prints a message in Minecraft
+    :param editor: The editor that interacts with Minecraft
+    :param text: The message to print
+    :return: None
+    """
+    editor.runCommand(f'tellraw @a {{ "text": "{text}", "color": "white" }}')
 
 
 def ingame_exception(editor: Editor, e: Exception) -> None:
@@ -26,3 +37,13 @@ def do_with_probability[T](
     if probability(p):
         return function(), True
     return None, False
+
+
+def mix(specs: list[tuple[Block, int]]) -> list[Block]:
+    """
+    Creates a list of blocks respecting the proportions given.
+    """
+    mixed_list = [block for block, proportion in specs for _ in range(proportion)]
+    shuffle(mixed_list)
+
+    return mixed_list

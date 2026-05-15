@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional
 
 from log.config import get_sim_logger
+from src.generation.houses.house import House
+from src.generation.houses.villager_house import VillagerHouse
 
 from .enums import ActionChoice
 from .exceptions import ImpossibleActionError, WrongTargetError
@@ -80,8 +82,8 @@ class Villager(Player["Pirate | Shop"]):
                 if items:
                     self.target = random.choice(items)
             case ActionChoice.Barter:
-                if self.simulation.pirates:
-                    self.target = random.choice(self.simulation.pirates)
+                if self.simulation.alive_pirates:
+                    self.target = random.choice(self.simulation.alive_pirates)
             case _:
                 self.target = None
 
@@ -157,3 +159,13 @@ class Villager(Player["Pirate | Shop"]):
     @property
     def log(self) -> str:
         return super().log + f"{self.happiness}"
+
+    def house(self, *args, **kwargs) -> House:
+        return VillagerHouse(
+            self,
+            height=5,
+            depth=5,
+            width=4,
+            *args,
+            **kwargs,
+        )

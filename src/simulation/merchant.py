@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Callable, Optional, TypedDict
 
 from log.config import get_sim_logger
+from src.generation.houses.house import House
+from src.generation.houses.merchant_house import MerchantHouse
 
 from .enums import ActionChoice
 from .exceptions import ImpossibleActionError, WrongTargetError
@@ -220,3 +222,6 @@ class Merchant(Player[Shop]):
             + f",,,,{self.closure_period},"
             + ",".join(shop.log for shop in self.store)
         )
+
+    def house(self, *args, **kwargs) -> House:
+        return MerchantHouse(self, *args, **kwargs)

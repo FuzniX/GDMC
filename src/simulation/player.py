@@ -3,7 +3,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional
 
+from gdpc.editor import Editor
+
 from log.config import get_sim_logger
+from src.generation.houses.house import House
 
 from ..utils import do_with_probability
 from .enums import ActionChoice, InfectionStatus
@@ -299,3 +302,9 @@ class Player[T](ABC):
             f"{self.idle_period},"
             f"{self.money},"
         )
+
+    @abstractmethod
+    def house(self, *args, **kwargs) -> House:
+        """
+        :return: Return the corresponding house for this player
+        """

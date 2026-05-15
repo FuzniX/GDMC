@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional
 
 from log.config import get_sim_logger
+from src.generation.houses.house import House
+from src.generation.houses.pirate_house import PirateHouse
 
 from ..utils import do_with_probability, probability
 from .enums import ActionChoice
@@ -123,7 +125,9 @@ class Pirate(Player["Villager | Merchant | Shop"]):
     def choose_target(self) -> None:
         match self.action_choice:
             case ActionChoice.Theft:
-                people = self.simulation.villagers + self.simulation.merchants
+                people = (
+                    self.simulation.alive_villagers + self.simulation.alive_merchants
+                )
                 if people:
                     self.target = random.choice(people)
             case ActionChoice.Rest:
@@ -266,3 +270,13 @@ class Pirate(Player["Villager | Merchant | Shop"]):
     @property
     def log(self) -> str:
         return super().log + (f",{self.bounty},{self.food},{self.days_at_sea}")
+
+    def house(self, *args, **kwargs) -> House:
+        return PirateHouse(
+            self,
+            height=5,
+            depth=5,
+            width=4,
+            *args,
+            **kwargs,
+        )

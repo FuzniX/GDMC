@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 
 from log.config import get_sim_logger, setup_logging
 
+from .enums import InfectionStatus
 from .merchant import MAX_ITEMS, Merchant, Shop
 from .pirate import Pirate
 from .player import Player
@@ -51,19 +52,26 @@ class Simulation:
         """
         Return a list of all the pirates in the simulation.
         """
+        return [p for p in self.players if isinstance(p, Pirate)]
+
+    @property
+    def alive_pirates(self) -> list[Pirate]:
+        """
+        Return a list of all the alive pirates in the simulation.
+        """
         return [p for p in self.players if isinstance(p, Pirate) and not p.dead]
 
     @property
-    def villagers(self) -> list[Villager]:
+    def alive_villagers(self) -> list[Villager]:
         """
-        Return a list of all the villagers in the simulation.
+        Return a list of all the alive villagers in the simulation.
         """
         return [v for v in self.players if isinstance(v, Villager) and not v.dead]
 
     @property
-    def merchants(self) -> list[Merchant]:
+    def alive_merchants(self) -> list[Merchant]:
         """
-        Return a list of all the merchants in the simulation.
+        Return a list of all the alive merchants in the simulation.
         """
         return [m for m in self.players if isinstance(m, Merchant) and not m.dead]
 
@@ -80,7 +88,7 @@ class Simulation:
         Return a list of all the items that all the merchants own.
         """
         all_items = []
-        for merchant in self.merchants:
+        for merchant in self.alive_merchants:
             all_items.extend(merchant.store)
         return all_items
 
@@ -89,7 +97,7 @@ class Simulation:
         """
         Return a list of the pirates who are in expedition.
         """
-        return [p for p in self.pirates if p.at_sea]
+        return [p for p in self.alive_pirates if p.at_sea]
 
     def step(self) -> None:
         """
@@ -171,6 +179,9 @@ class Simulation:
             )
             players.append(p)
             i += 1
+
+        for player in players:
+            player.infection_status = random.choice(list(InfectionStatus))
 
         return Simulation(players=players, days=days)
 
