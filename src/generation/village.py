@@ -23,6 +23,12 @@ STREET_EAST: int = 6
 STREET_NORTH: int = 7
 STREET_WEST: int = 8
 STREET_DIRECTIONS = [STREET_SOUTH, STREET_EAST, STREET_NORTH, STREET_WEST]
+STREET_ROTATIONS = {
+    STREET_NORTH: 0,
+    STREET_EAST: 1,
+    STREET_SOUTH: 2,
+    STREET_WEST: 3,
+}
 
 
 @dataclass
@@ -48,12 +54,8 @@ class Village:
         Prepares the houses to build.
         :return: None
         """
-        buildArea = self.editor.getBuildArea()
-        self.x = buildArea.begin.x + 1
-        self.z = buildArea.begin.z + 1
-        self.endX = buildArea.end.x
-        self.endZ = buildArea.end.z
-        self.houseMap = np.zeros((buildArea.size.x, buildArea.size.z))
+        self.buildArea = self.editor.getBuildArea()
+        self.houseMap = np.zeros((self.buildArea.size.x, self.buildArea.size.z))
 
         self.generate_pirate_zone()
         self.generate_streets()
@@ -99,7 +101,7 @@ class Village:
         # Initialize the frontier around the starting point
         add_neighbors(start_x, start_z)
 
-        # 3. Expand zone until required size is reached
+        # Expand zone until required size is reached
         while blocks_to_place > 0 and frontier:
             # Select a random cell from the current frontier
             next_cell = random.choice(list(frontier))
@@ -115,148 +117,138 @@ class Village:
                 # Expand the frontier with the new cell's neighbors
                 add_neighbors(cx, cz)
 
-    def generate_horizontal_streets(
-        self, nb_horizontal: int = 5, street_width: int = 3
-    ) -> None:
+    def generate_horizontal_streets(self, nb: int = 5, width: int = 3) -> None:
         """
         Generates horizontal streets with a specific width and a surrounding padding.
         Uses a 1D array to ensure parallel streets do not overlap.
         """
         size_x, size_z = self.houseMap.shape
         occupied_z = np.zeros(size_z, dtype=int)
+        placed = 0
 
-        radius = street_width // 2
-        padding_radius = radius + 1
+        radius = width // 2
+        padding = radius + 1
 
-        for _ in range(nb_horizontal):
-            for _ in range(100):  # Attempts to find a free spot
-                z_center = randint(padding_radius, size_z - (padding_radius + 1))
+        for _ in range(100_000):  # Attempts to find a free spot
+            z_center = randint(padding, size_z - (padding + 1))
 
-                # Prevent parallel streets from overlapping
-                if np.any(
-                    occupied_z[
-                        z_center - padding_radius : z_center + padding_radius + 1
-                    ]
-                    == 1
-                ):
-                    continue
+            # Prevent parallel streets from overlapping
+            if np.any(occupied_z[z_center - padding : z_center + padding + 1] == 1):
+                continue
 
-                # Random horizontal span
-                start_x = randint(1, size_x // 2)
-                end_x = randint(size_x // 2, size_x - 2)
+            # Random horizontal span
+            start_x = randint(1, size_x // 2)
+            end_x = randint(size_x // 2, size_x - 2)
 
-                # Mark street as occupied for subsequent vertical streets
-                occupied_z[
-                    z_center - padding_radius : z_center + padding_radius + 1
-                ] = 1
+            # Mark street as occupied for subsequent vertical streets
+            occupied_z[z_center - padding : z_center + padding + 1] = 1
 
-                # Draw on houseMap
-                for x in range(start_x - 1, end_x + 2):
-                    for offset in range(-padding_radius, padding_radius + 1):
-                        z = z_center + offset
-                        if 0 <= x < size_x and 0 <= z < size_z:
-                            # Define if we are in the street core or the padding area
-                            if (start_x <= x <= end_x) and (
-                                -radius <= offset <= radius
-                            ):
-                                # Streets can overwrite free space or existing padding (for intersections)
-                                if self.houseMap[x, z] in [FREE_BLOCK, PADDING_BLOCK]:
-                                    self.houseMap[x, z] = STREET_BLOCK
-                            elif self.houseMap[x, z] == FREE_BLOCK:
-                                # Padding only marks empty space
-                                self.houseMap[x, z] = PADDING_BLOCK
-                break
+            # Full area
+            x_slice = slice(max(0, start_x - 1), min(size_x, end_x + 2))
+            z_slice = slice(
+                max(0, z_center - padding),
+                min(size_z, z_center + padding + 1),
+            )
 
-    def generate_vertical_streets(
-        self, nb_vertical: int = 5, street_width: int = 3
-    ) -> None:
+            # Apply padding with mask
+            padding_mask = self.houseMap[x_slice, z_slice] == FREE_BLOCK
+            self.houseMap[x_slice, z_slice][padding_mask] = PADDING_BLOCK
+
+            # Overwrite the street core
+            core_x_slice = slice(start_x, end_x + 1)
+            core_z_slice = slice(z_center - radius, z_center + radius + 1)
+            street_mask = self.houseMap[core_x_slice, core_z_slice] != PIRATE_BLOCK
+            self.houseMap[core_x_slice, core_z_slice][street_mask] = STREET_BLOCK
+
+            placed += 1
+            if placed == nb:
+                return
+
+    def generate_vertical_streets(self, nb: int = 5, width: int = 3) -> None:
         """
         Generates vertical streets with a specific width and a surrounding padding.
         Uses a 1D array to ensure parallel streets do not overlap.
         """
         size_x, size_z = self.houseMap.shape
         occupied_x = np.zeros(size_x, dtype=int)
+        placed = 0
 
-        radius = street_width // 2
-        padding_radius = radius + 1
+        radius = width // 2
+        padding = radius + 1
 
-        for _ in range(nb_vertical):
-            for _ in range(100):  # Attempts to find a free spot
-                x_center = randint(padding_radius, size_x - (padding_radius + 1))
+        for _ in range(100_000):  # Attempts to find a free spot
+            x_center = randint(padding, size_x - (padding + 1))
 
-                # Prevent parallel streets from overlapping
-                if np.any(
-                    occupied_x[
-                        x_center - padding_radius : x_center + padding_radius + 1
-                    ]
-                    == 1
-                ):
-                    continue
+            # Prevent parallel streets from overlapping
+            if np.any(occupied_x[x_center - padding : x_center + padding + 1] == 1):
+                continue
 
-                # Random horizontal span
-                start_z = randint(1, size_z // 2)
-                end_z = randint(size_z // 2, size_z - 2)
+            # Random horizontal span
+            start_z = randint(1, size_z // 2)
+            end_z = randint(size_z // 2, size_z - 2)
 
-                # Mark street as occupied for subsequent vertical streets
-                occupied_x[
-                    x_center - padding_radius : x_center + padding_radius + 1
-                ] = 1
+            # Mark street as occupied for subsequent vertical streets
+            occupied_x[x_center - padding : x_center + padding + 1] = 1
 
-                for z in range(start_z - 1, end_z + 2):
-                    for offset in range(-padding_radius, padding_radius + 1):
-                        x = x_center + offset
-                        if 0 <= x < size_x and 0 <= z < size_z:
-                            # Define if we are in the street core or the padding area
-                            if (start_z <= z <= end_z) and (
-                                -radius <= offset <= radius
-                            ):
-                                # Streets can overwrite free space or existing padding (for intersections)
-                                if self.houseMap[x, z] in [FREE_BLOCK, PADDING_BLOCK]:
-                                    self.houseMap[x, z] = STREET_BLOCK
-                            elif self.houseMap[x, z] == FREE_BLOCK:
-                                # Padding only marks empty space
-                                self.houseMap[x, z] = PADDING_BLOCK
-                break
+            # Full area
+            x_slice = slice(
+                max(0, x_center - padding), min(size_x, x_center + padding + 1)
+            )
+            z_slice = slice(max(0, start_z - 1), min(size_z, end_z + 2))
 
-    def place_street_direction(self, x: int, z: int) -> None:
-        size_x, size_z = self.houseMap.shape
+            # Apply padding with mask
+            padding_mask = self.houseMap[x_slice, z_slice] == FREE_BLOCK
+            self.houseMap[x_slice, z_slice][padding_mask] = PADDING_BLOCK
+
+            # Overwrite street core
+            core_x_slice = slice(x_center - radius, x_center + radius + 1)
+            core_z_slice = slice(start_z, end_z + 1)
+            street_mask = self.houseMap[core_x_slice, core_z_slice] != PIRATE_BLOCK
+            self.houseMap[core_x_slice, core_z_slice][street_mask] = STREET_BLOCK
+
+            placed += 1
+            if placed == nb:
+                return
+
+    def place_street_positions(self) -> None:
         max_dist = 5
 
-        # South
-        if np.any(
-            self.houseMap[x, z + 1 : min(size_z, z + max_dist + 1)] == STREET_BLOCK
+        for get_street_slice, get_target_slice, direction in zip(
+            [  # Street slices
+                lambda d: (slice(None), slice(d, None)),  # South
+                lambda d: (slice(d, None), slice(None)),  # East
+                lambda d: (slice(None), slice(None, -d)),  # North
+                lambda d: (slice(None, -d), slice(None)),  # West
+            ],
+            [  # Target slices
+                lambda d: (slice(None), slice(None, -d)),  # South
+                lambda d: (slice(None, -d), slice(None)),  # East
+                lambda d: (slice(None), slice(d, None)),  # North
+                lambda d: (slice(d, None), slice(None)),  # West
+            ],
+            STREET_DIRECTIONS,
         ):
-            self.houseMap[x, z] = STREET_SOUTH
+            for d in range(1, max_dist + 1):
+                s_slice = get_street_slice(d)
+                t_slice = get_target_slice(d)
 
-        # East
-        elif np.any(
-            self.houseMap[x + 1 : min(size_x, x + max_dist + 1), z] == STREET_BLOCK
-        ):
-            self.houseMap[x, z] = STREET_EAST
+                # Identify where streets are in the view
+                street_found = self.houseMap[s_slice] == STREET_BLOCK
+                target_view = self.houseMap[t_slice]
 
-        # North
-        elif np.any(self.houseMap[x, max(0, z - max_dist) : z] == STREET_BLOCK):
-            self.houseMap[x, z] = STREET_NORTH
-
-        # West
-        elif np.any(self.houseMap[max(0, x - max_dist) : x, z] == STREET_BLOCK):
-            self.houseMap[x, z] = STREET_WEST
+                # Apply direction only to free blocks
+                mask = (target_view == FREE_BLOCK) & street_found
+                target_view[mask] = direction
 
     def generate_streets(
-        self, nb_horizontal: int = 5, nb_vertical: int = 5, street_width: int = 3
+        self, nb_horizontal: int = 5, nb_vertical: int = 5, width: int = 3
     ) -> None:
         """
         Generates streets, their padding, and marks buildable zones based on street proximity.
         """
-        self.generate_horizontal_streets(nb_horizontal, street_width)
-        self.generate_vertical_streets(nb_vertical, street_width)
-
-        size_x, size_z = self.houseMap.shape
-
-        for x in range(size_x):
-            for z in range(size_z):
-                if self.houseMap[x, z] == FREE_BLOCK:
-                    self.place_street_direction(x, z)
+        self.generate_horizontal_streets(nb_horizontal, width)
+        self.generate_vertical_streets(nb_vertical, width)
+        self.place_street_positions()
 
     @property
     def heightmaps(self) -> np.ndarray:
@@ -280,31 +272,17 @@ class Village:
 
         return self._houses
 
-    def rotation(self, x: int, z: int) -> int:
-        value = self.houseMap[x, z]
-
-        if value == STREET_SOUTH:
-            return 2
-        elif value == STREET_NORTH:
-            return 0
-        elif value == STREET_WEST:
-            return 3
-        elif value == STREET_EAST:
-            return 1
-        else:
-            return 0
-
     def get_house(self, player: Player) -> House:
         for _ in range(100_000):
             house = player.house(
                 editor=self.editor,
-                x=(x := randint(self.x, self.endX)),
-                z=(z := randint(self.z, self.endZ)),
-                y=self.heightmaps[x - self.x, z - self.z] - 1,
+                x=(x := randint(0, self.buildArea.size.x - 1)),
+                z=(z := randint(0, self.buildArea.size.z - 1)),
+                y=self.heightmaps[x, z] - 1,
                 # height=self.height(),
                 # depth=self.depth(),
                 # width=self.width(),
-                # rotation=self.rotation(x - self.x, z - self.z),
+                # rotation=self.rotation(x, z),
                 rotation=randint(0, 3),
             )
 
@@ -314,6 +292,9 @@ class Village:
             raise HouseOverlapError("Impossible to place house")
 
         return house
+
+    def rotation(self, x: int, z: int) -> int:
+        return STREET_ROTATIONS[self.houseMap[x, z]]
 
     def build(self) -> None:
         """
@@ -327,29 +308,19 @@ class Village:
 
     def build_zones(self) -> None:
         """
-        Physically places blocks in Minecraft based on the houseMap values.
-        - Value 2 (Pirates) -> black_concrete
-        - Value 3 (Streets) -> dirt_path
+        Physically places blocks in Minecraft using NumPy masks and coordinate iteration.
         """
-        size_x, size_z = self.houseMap.shape
+        # Pirates
+        for x, z in np.argwhere(self.houseMap == PIRATE_BLOCK):
+            self.editor.placeBlock(
+                (x, self.heightmaps[x, z] - 1, z), Block("black_concrete")
+            )
 
-        for x_map in range(size_x):
-            for z_map in range(size_z):
-                val = self.houseMap[x_map, z_map]
-
-                world_x = self.x + x_map - 1
-                world_z = self.z + z_map - 1
-                world_y = self.heightmaps[x_map, z_map] - 1
-
-                if val == 2:  # Pirate Zone
-                    self.editor.placeBlock(
-                        (world_x, world_y, world_z), Block("black_concrete")
-                    )
-
-                elif val == 3:  # Street Zone
-                    self.editor.placeBlock(
-                        (world_x, world_y, world_z), Block("dirt_path")
-                    )
+        # Streets
+        for x, z in np.argwhere(self.houseMap == STREET_BLOCK):
+            self.editor.placeBlock(
+                (x, self.heightmaps[x, z] - 1, z), Block("dirt_path")
+            )
 
     def get_house_footprint(
         self, house: House
@@ -360,18 +331,18 @@ class Village:
         :return: A tuple of base and end coordinates
         """
         # Base coordinates
-        baseX = house.x - self.x
-        baseZ = house.z - self.z
+        baseX = house.x
+        baseZ = house.z
 
         # Can be different depending on the rotation of the house
         match house.rotation:
             case 1:
-                baseX = house.x - self.x - house.depth
+                baseX = house.x - house.depth
             case 2:
-                baseX = house.x - self.x - house.width
-                baseZ = house.z - self.z - house.depth
+                baseX = house.x - house.width
+                baseZ = house.z - house.depth
             case 3:
-                baseZ = house.z - self.z - house.width
+                baseZ = house.z - house.width
 
         # Coordinates of the opposite corner
         endX = baseX + 3 + (house.width if house.rotation % 2 == 0 else house.depth)
@@ -435,7 +406,12 @@ class Village:
             self.heightmaps.T,
             cmap="inferno",
             origin="lower",
-            extent=(self.x, self.endX, self.z, self.endZ),
+            extent=(
+                self.buildArea.begin.x,
+                self.buildArea.end.x,
+                self.buildArea.begin.z,
+                self.buildArea.end.z,
+            ),
         )
         plt.colorbar(im, label="Y")
 
@@ -455,7 +431,12 @@ class Village:
             self.houseMap.T,
             cmap="inferno",
             origin="lower",
-            extent=(self.x, self.endX, self.z, self.endZ),
+            extent=(
+                self.buildArea.begin.x,
+                self.buildArea.end.x,
+                self.buildArea.begin.z,
+                self.buildArea.end.z,
+            ),
         )
 
         for house in self.houses:

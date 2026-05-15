@@ -1,13 +1,15 @@
+import time
+
 from gdpc.block import Block
-from gdpc.editor import Editor
-from matplotlib import pyplot as plt
 
 from ..simulation.simulation import Simulation
-from ..utils import ingame_exception, ingame_print
+from ..utils import AllowedTimeExceededError, CustomEditor
 from .village import Village
 
+ALLOWED_TIME = 40  # seconds
 
-def simulation_village():
+
+def main():
     village = Village(
         editor=editor,
         simulation=Simulation.generate(
@@ -20,14 +22,15 @@ def simulation_village():
     village.build()
     editor.flushBuffer()
 
-
-def main():
-    simulation_village()
+    # from matplotlib import pyplot as plt
+    # village.plot_houseMap()
+    # plt.show()
 
 
 if __name__ == "__main__":
-    editor = Editor(buffering=True)
+    editor = CustomEditor(buffering=True)
     buildArea = editor.getBuildArea()
+    editor.transform = buildArea.begin.x, 0, buildArea.begin.z
 
     # Load world slice of the build area
     editor.loadWorldSlice(cache=True)
@@ -39,12 +42,21 @@ if __name__ == "__main__":
     # Loop through the perimeter of the build area
     for point in buildRect.outline:
         localPoint = point - buildRect.offset
-
         height = heightmaps[tuple(localPoint)] - 1
-        editor.placeBlock((point[0], height, point[1]), Block("red_concrete"))
+        editor.placeBlock((localPoint[0], height, localPoint[1]), Block("red_concrete"))
 
     try:
+        start_time = time.perf_counter()
+
         main()
-        ingame_print(editor, "Done!")
+
+        # Check elapsed time after main() finishes
+        elapsed_time = time.perf_counter() - start_time
+        if elapsed_time > ALLOWED_TIME:
+            raise AllowedTimeExceededError(
+                f"Allowed time exceeded! ({elapsed_time:.2f}s)"
+            )
+        else:
+            editor.ingame_print(f"Done in {elapsed_time:.2f}s!")
     except Exception as e:
-        ingame_exception(editor, e)
+        editor.ingame_exception(e)
