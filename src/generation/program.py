@@ -2,8 +2,6 @@ import time
 
 from gdpc.block import Block
 
-from src.simulation.merchant import Merchant, Shop
-
 from ..simulation.simulation import Simulation
 from ..utils import AllowedTimeExceededError, CustomEditor
 from .village import Village
