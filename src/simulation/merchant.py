@@ -6,7 +6,6 @@ from typing import Callable, Optional, TypedDict
 
 from log.config import get_sim_logger
 from src.generation.houses.house import House
-from src.generation.houses.merchant_house import MerchantHouse
 
 from .enums import ActionChoice
 from .exceptions import ImpossibleActionError, WrongTargetError
@@ -224,4 +223,13 @@ class Merchant(Player[Shop]):
         )
 
     def house(self, *args, **kwargs) -> House:
-        return MerchantHouse(self, *args, **kwargs)
+        from src.generation.houses.merchant_house import MerchantHouse
+
+        return MerchantHouse(
+            self,
+            height=8,
+            depth=7,
+            width=7,
+            *args,
+            **kwargs,
+        )

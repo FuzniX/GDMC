@@ -1,7 +1,7 @@
 import random
 from dataclasses import dataclass, field
 from random import randint
-from typing import Callable, Optional
+from typing import Callable, Generator, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -256,7 +256,7 @@ class Village:
         return self.editor.worldSlice.heightmaps["MOTION_BLOCKING_NO_LEAVES"]
 
     @property
-    def houses(self) -> list[House]:
+    def houses(self) -> Generator[House, None, list[House]]:
         if self._houses is not None:
             return self._houses
 
@@ -269,6 +269,8 @@ class Village:
             # Mark house as placed
             (min_x, max_x), (min_z, max_z) = self.get_house_footprint(house)
             self.houseMap[min_x:max_x, min_z:max_z] = 1
+
+            yield house
 
         return self._houses
 
@@ -330,23 +332,7 @@ class Village:
         :param house:
         :return: A tuple of base and end coordinates
         """
-        # Base coordinates
-        baseX = house.x
-        baseZ = house.z
-
-        # Can be different depending on the rotation of the house
-        match house.rotation:
-            case 1:
-                baseX = house.x - house.depth
-            case 2:
-                baseX = house.x - house.width
-                baseZ = house.z - house.depth
-            case 3:
-                baseZ = house.z - house.width
-
-        # Coordinates of the opposite corner
-        endX = baseX + 3 + (house.width if house.rotation % 2 == 0 else house.depth)
-        endZ = baseZ + 3 + (house.depth if house.rotation % 2 == 0 else house.width)
+        baseX, endX, baseZ, endZ = house.get_footprint()
 
         # Make sure the region is in the matrix
         return (
@@ -415,7 +401,8 @@ class Village:
         )
         plt.colorbar(im, label="Y")
 
-        for house in self.houses:
+        assert self._houses is not None
+        for house in self._houses:
             house.plot(ax)
 
         ax.invert_xaxis()
@@ -439,7 +426,8 @@ class Village:
             ),
         )
 
-        for house in self.houses:
+        assert self._houses is not None
+        for house in self._houses:
             house.plot(ax)
 
         plt.colorbar(im, label="Built")

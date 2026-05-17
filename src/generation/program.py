@@ -2,6 +2,8 @@ import time
 
 from gdpc.block import Block
 
+from src.simulation.merchant import Merchant, Shop
+
 from ..simulation.simulation import Simulation
 from ..utils import AllowedTimeExceededError, CustomEditor
 from .village import Village
@@ -13,8 +15,8 @@ def main():
     village = Village(
         editor=editor,
         simulation=Simulation.generate(
-            nb_villagers=50,
-            nb_merchants=0,
+            nb_villagers=10,
+            nb_merchants=10,
             nb_pirates=10,
         ),
     )
@@ -22,9 +24,11 @@ def main():
     village.build()
     editor.flushBuffer()
 
-    # from matplotlib import pyplot as plt
-    # village.plot_houseMap()
-    # plt.show()
+    from matplotlib import pyplot as plt
+
+    village.plot_houseMap()
+    # village.plot()
+    plt.show()
 
 
 if __name__ == "__main__":
