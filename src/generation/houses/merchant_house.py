@@ -385,40 +385,67 @@ class MerchantHouse(House[Merchant]):
         self.editor.placeBlock((sx + 1, sy, sz), Block("chest", {"facing": "north"}))
         self.editor.placeBlock((sx + 1, sy + 1, sz), Block("air"))
 
-    def get_footprint(self) -> tuple[int, int, int, int]:
-        baseX, endX, baseZ, endZ = super().get_footprint()
+    def get_local_footprint(self) -> tuple[int, int, int, int]:
+        """
+        Computes the local unrotated footprint boundary, extending it
+        to account for the storefront shops row alignment.
+        """
+        # Get baseline structure footprint dimensions (0, width, 0, depth)
+        min_x, max_x, min_z, max_z = super().get_local_footprint()
 
+        # Calculate local storefront requirements
         nb_shops = len(self.player.store)
         shop_w = 3
         spacing = 1
         total_shops_width = (nb_shops * shop_w) + ((nb_shops - 1) * spacing)
         shop_extension = 5
 
-        # Expand footprint boundaries based on local rotational facing direction
-        if self.rotation % 2 == 0:
-            house_w = endX - baseX
-            if total_shops_width > house_w:
-                diff = (total_shops_width - house_w) // 2
-                baseX -= diff
-                endX += diff
+        # Expand the local X boundaries if the shops row is wider than the house
+        house_w = max_x - min_x
+        if total_shops_width > house_w:
+            diff = (total_shops_width - house_w) // 2
+            min_x -= diff
+            max_x += diff
 
-            if self.rotation == 0:
-                baseZ -= shop_extension
-            else:
-                endZ += shop_extension
-        else:
-            house_d = endZ - baseZ
-            if total_shops_width > house_d:
-                diff = (total_shops_width - house_d) // 2
-                baseZ -= diff
-                endZ += diff
+        # Shops sit directly in front of the building (negative local Z space)
+        min_z -= shop_extension
 
-            if self.rotation == 1:
-                baseX -= shop_extension
-            else:
-                endX += shop_extension
+        return min_x, max_x, min_z, max_z
 
-        return baseX, endX, baseZ, endZ
+    # def get_footprint(self) -> tuple[int, int, int, int]:
+    #     baseX, endX, baseZ, endZ = super().get_footprint()
+
+    #     nb_shops = len(self.player.store)
+    #     shop_w = 3
+    #     spacing = 1
+    #     total_shops_width = (nb_shops * shop_w) + ((nb_shops - 1) * spacing)
+    #     shop_extension = 5
+
+    #     # Expand footprint boundaries based on local rotational facing direction
+    #     if self.rotation % 2 == 0:
+    #         house_w = endX - baseX
+    #         if total_shops_width > house_w:
+    #             diff = (total_shops_width - house_w) // 2
+    #             baseX -= diff
+    #             endX += diff
+
+    #         if self.rotation == 0:
+    #             baseZ -= shop_extension
+    #         else:
+    #             endZ += shop_extension
+    #     else:
+    #         house_d = endZ - baseZ
+    #         if total_shops_width > house_d:
+    #             diff = (total_shops_width - house_d) // 2
+    #             baseZ -= diff
+    #             endZ += diff
+
+    #         if self.rotation == 1:
+    #             baseX -= shop_extension
+    #         else:
+    #             endX += shop_extension
+
+    #     return baseX, endX, baseZ, endZ
 
     def plot(self, ax: Axes) -> "MerchantHouse":
         rect = patches.Rectangle(

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from gdpc.block import Block
 from gdpc.editor import Editor
+from gdpc.transform import Transform
 from matplotlib.axes import Axes
 
 from src.simulation.enums import InfectionStatus
@@ -89,25 +90,40 @@ class House[P: Player]:
             ]
         )
 
+    def get_local_footprint(self) -> tuple[int, int, int, int]:
+        """
+        Calculates the local bounding box (minX, maxX, minZ, maxZ)
+        relative to (0,0).
+        """
+        return -1, self.width + 1, -1, self.depth
+
     def get_footprint(self) -> tuple[int, int, int, int]:
         """
-        Calculates the raw bounding box (baseX, endX, baseZ, endZ) of the house
-        including any external extensions (like merchant shops), without matrix bounds checking.
+        Transforms the unrotated local footprint boundaries into global world coordinates
         """
-        baseX = self.x
-        baseZ = self.z
+        min_x, max_x, min_z, max_z = self.get_local_footprint()
 
-        match self.rotation:
-            case 1:
-                baseX = self.x - self.depth
-            case 2:
-                baseX = self.x - self.width
-                baseZ = self.z - self.depth
-            case 3:
-                baseZ = self.z - self.width
+        # Instantiate the exact spatial translation and rotation matrix
+        house_transform = Transform(
+            translation=(self.x, self.y, self.z), rotation=self.rotation
+        )
 
-        endX = baseX + 3 + (self.width if self.rotation % 2 == 0 else self.depth)
-        endZ = baseZ + 3 + (self.depth if self.rotation % 2 == 0 else self.width)
+        # Map the 4 local 3D corners of the local bounding box layout
+        local_corners = [
+            (min_x, 0, min_z),
+            (max_x, 0, min_z),
+            (min_x, 0, max_z),
+            (max_x, 0, max_z),
+        ]
+
+        # Process corners through the transform to project them into global world space
+        global_corners = [house_transform.apply(corner) for corner in local_corners]
+
+        # Extract extreme limits to form the final globally aligned 2D bounding box
+        baseX = min(c[0] for c in global_corners)
+        endX = max(c[0] for c in global_corners)
+        baseZ = min(c[2] for c in global_corners)
+        endZ = max(c[2] for c in global_corners)
 
         return baseX, endX, baseZ, endZ
 
