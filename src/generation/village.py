@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass, field
-from random import randint
+from random import choice, randint
 from typing import Callable, Generator, Optional
 
 import matplotlib.pyplot as plt
@@ -28,6 +28,29 @@ STREET_ROTATIONS = {
     STREET_EAST: 1,
     STREET_SOUTH: 2,
     STREET_WEST: 3,
+}
+
+# Organic Block Spiral
+# Forces paths to wrap around the center before splitting, leaving large open blocks for houses.
+LSYSTEM_AXIOME_SPIRAL = "F+F+F+F"
+LSYSTEM_RULES_SPIRAL = {
+    "F": [
+        "F[+F]FF",  # Long straight path with a right branch
+        "F[-F]FF",  # Long straight path with a left branch
+        "FF",  # Pure extension to push intersections away
+    ]
+}
+
+# Major Trunk Dividers
+# Acts like a tree outline that splits into huge secondary sectors right from the start.
+LSYSTEM_AXIOME_DIVIDER = "[F][+F][-F][++F]"
+LSYSTEM_RULES_DIVIDER = {
+    # "F": ["FF[+F][-F]F"]
+    "F": [
+        "F+F[-F]",
+        "F-F[+F]",
+        "FF",
+    ]
 }
 
 
@@ -117,98 +140,109 @@ class Village:
                 # Expand the frontier with the new cell's neighbors
                 add_neighbors(cx, cz)
 
-    def generate_horizontal_streets(self, nb: int = 5, width: int = 3) -> None:
-        """
-        Generates horizontal streets with a specific width and a surrounding padding.
-        Uses a 1D array to ensure parallel streets do not overlap.
-        """
-        size_x, size_z = self.houseMap.shape
-        occupied_z = np.zeros(size_z, dtype=int)
-        placed = 0
+    def _expand_lsystem(self, iterations: int) -> str:
+        """Expand axiom rules into a command sequence using choices."""
+        commands = LSYSTEM_AXIOME_DIVIDER
+        for _ in range(iterations):
+            next_seq = ""
+            for char in commands:
+                if char in LSYSTEM_RULES_DIVIDER:
+                    next_seq += choice(LSYSTEM_RULES_DIVIDER[char])
+                else:
+                    next_seq += char
+            commands = next_seq
+        return commands
 
-        radius = width // 2
-        padding = radius + 1
+    def _paint_street_block(self, cx: int, cz: int, r: int, p: int) -> None:
+        """Apply core street and padding slices onto the houseMap matrix."""
+        sx, sz = self.houseMap.shape
 
-        for _ in range(100_000):  # Attempts to find a free spot
-            z_center = randint(padding, size_z - (padding + 1))
+        # Draw surrounding road padding blocks
+        x_pad = slice(max(0, cx - p), min(sx, cx + p + 1))
+        z_pad = slice(max(0, cz - p), min(sz, cz + p + 1))
+        pad_mask = self.houseMap[x_pad, z_pad] == FREE_BLOCK
+        self.houseMap[x_pad, z_pad][pad_mask] = PADDING_BLOCK
 
-            # Prevent parallel streets from overlapping
-            if np.any(occupied_z[z_center - padding : z_center + padding + 1] == 1):
+        # Draw solid central street blocks
+        x_core = slice(max(0, cx - r), min(sx, cx + r + 1))
+        z_core = slice(max(0, cz - r), min(sz, cz + r + 1))
+        str_mask = self.houseMap[x_core, z_core] != PIRATE_BLOCK
+        self.houseMap[x_core, z_core][str_mask] = STREET_BLOCK
+
+    def _trace_forward(
+        self, state: list, move: tuple, step: int, limit: int, r: int, p: int
+    ) -> list:
+        """Move the turtle forward, tracking slopes and drawing the street."""
+        cx, cz, angle = state
+        dx, dz = move
+        sx, sz = self.houseMap.shape
+
+        for _ in range(step):
+            nx, nz = cx + dx, cz + dz
+
+            # Map boundaries guard check
+            if not (0 <= nx < sx and 0 <= nz < sz):
+                break
+
+            # Height slope guard check
+            if abs(self.heightmaps[nx, nz] - self.heightmaps[cx, cz]) > limit:
+                break
+
+            cx, cz = nx, nz
+            self._paint_street_block(cx, cz, r, p)
+
+        return [cx, cz, angle]
+
+    def generate_streets(
+        self,
+        iterations: int = 3,
+        step_length: int = 24,
+        width: int = 3,
+        max_slope: int = 2,
+    ) -> None:
+        """Generate a structured connected orthogonal street matrix network."""
+        sx, sz = self.houseMap.shape
+        commands = self._expand_lsystem(iterations)
+
+        # Execution parameters
+        prob = 0.75
+        radius, padding = width // 2, (width // 2) + 1
+        directions = {0: (0, -1), 90: (1, 0), 180: (0, 1), 270: (-1, 0)}
+
+        # Structural states tracking
+        state = [sx // 2, sz // 2, 0]  # cx, cz, angle_deg
+        stack = []
+        skip_depth = 0
+
+        for cmd in commands:
+            # Handle skipped branch depth nesting
+            if skip_depth > 0:
+                if cmd == "[":
+                    skip_depth += 1
+                elif cmd == "]":
+                    skip_depth -= 1
                 continue
 
-            # Random horizontal span
-            start_x = randint(1, size_x // 2)
-            end_x = randint(size_x // 2, size_x - 2)
+            if cmd == "F":
+                move_vec = directions[state[2]]
+                state = self._trace_forward(
+                    state, move_vec, step_length, max_slope, radius, padding
+                )
+            elif cmd == "+":
+                state[2] = (state[2] + 90) % 360
+            elif cmd == "-":
+                state[2] = (state[2] - 90) % 360
+            elif cmd == "[":
+                # Drop branch execution based on probability constraint
+                if random.random() > prob:
+                    skip_depth = 1
+                else:
+                    stack.append(tuple(state))
+            elif cmd == "]" and stack:
+                state = list(stack.pop())
 
-            # Mark street as occupied for subsequent vertical streets
-            occupied_z[z_center - padding : z_center + padding + 1] = 1
-
-            # Full area
-            x_slice = slice(max(0, start_x - 1), min(size_x, end_x + 2))
-            z_slice = slice(
-                max(0, z_center - padding),
-                min(size_z, z_center + padding + 1),
-            )
-
-            # Apply padding with mask
-            padding_mask = self.houseMap[x_slice, z_slice] == FREE_BLOCK
-            self.houseMap[x_slice, z_slice][padding_mask] = PADDING_BLOCK
-
-            # Overwrite the street core
-            core_x_slice = slice(start_x, end_x + 1)
-            core_z_slice = slice(z_center - radius, z_center + radius + 1)
-            street_mask = self.houseMap[core_x_slice, core_z_slice] != PIRATE_BLOCK
-            self.houseMap[core_x_slice, core_z_slice][street_mask] = STREET_BLOCK
-
-            placed += 1
-            if placed == nb:
-                return
-
-    def generate_vertical_streets(self, nb: int = 5, width: int = 3) -> None:
-        """
-        Generates vertical streets with a specific width and a surrounding padding.
-        Uses a 1D array to ensure parallel streets do not overlap.
-        """
-        size_x, size_z = self.houseMap.shape
-        occupied_x = np.zeros(size_x, dtype=int)
-        placed = 0
-
-        radius = width // 2
-        padding = radius + 1
-
-        for _ in range(100_000):  # Attempts to find a free spot
-            x_center = randint(padding, size_x - (padding + 1))
-
-            # Prevent parallel streets from overlapping
-            if np.any(occupied_x[x_center - padding : x_center + padding + 1] == 1):
-                continue
-
-            # Random horizontal span
-            start_z = randint(1, size_z // 2)
-            end_z = randint(size_z // 2, size_z - 2)
-
-            # Mark street as occupied for subsequent vertical streets
-            occupied_x[x_center - padding : x_center + padding + 1] = 1
-
-            # Full area
-            x_slice = slice(
-                max(0, x_center - padding), min(size_x, x_center + padding + 1)
-            )
-            z_slice = slice(max(0, start_z - 1), min(size_z, end_z + 2))
-
-            # Apply padding with mask
-            padding_mask = self.houseMap[x_slice, z_slice] == FREE_BLOCK
-            self.houseMap[x_slice, z_slice][padding_mask] = PADDING_BLOCK
-
-            # Overwrite street core
-            core_x_slice = slice(x_center - radius, x_center + radius + 1)
-            core_z_slice = slice(start_z, end_z + 1)
-            street_mask = self.houseMap[core_x_slice, core_z_slice] != PIRATE_BLOCK
-            self.houseMap[core_x_slice, core_z_slice][street_mask] = STREET_BLOCK
-
-            placed += 1
-            if placed == nb:
-                return
+        # Build building borders layout
+        self.place_street_positions()
 
     def place_street_positions(self) -> None:
         max_dist = 5
@@ -240,16 +274,6 @@ class Village:
                 mask = (target_view == FREE_BLOCK) & street_found
                 target_view[mask] = direction
 
-    def generate_streets(
-        self, nb_horizontal: int = 5, nb_vertical: int = 5, width: int = 3
-    ) -> None:
-        """
-        Generates streets, their padding, and marks buildable zones based on street proximity.
-        """
-        self.generate_horizontal_streets(nb_horizontal, width)
-        self.generate_vertical_streets(nb_vertical, width)
-        self.place_street_positions()
-
     @property
     def heightmaps(self) -> np.ndarray:
         assert self.editor.worldSlice is not None
@@ -263,14 +287,18 @@ class Village:
         self._houses = []
 
         for player in self.simulation.players:
-            house = self.get_house(player)
-            self._houses.append(house)
+            try:
+                house = self.get_house(player)
+                self._houses.append(house)
 
-            # Mark house as placed
-            (min_x, max_x), (min_z, max_z) = self.get_house_footprint(house)
-            self.houseMap[min_x:max_x, min_z:max_z] = 1
+                # Mark house as placed
+                (min_x, max_x), (min_z, max_z) = self.get_house_footprint(house)
+                self.houseMap[min_x:max_x, min_z:max_z] = 1
 
-            yield house
+                yield house
+
+            except HouseOverlapError:
+                pass
 
         return self._houses
 

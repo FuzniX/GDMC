@@ -1,4 +1,5 @@
 import time
+import traceback
 
 from gdpc.block import Block
 
@@ -13,7 +14,7 @@ def main():
     village = Village(
         editor=editor,
         simulation=Simulation.generate(
-            nb_villagers=10,
+            nb_villagers=20,
             nb_merchants=10,
             nb_pirates=10,
         ),
@@ -22,11 +23,11 @@ def main():
     village.build()
     editor.flushBuffer()
 
-    from matplotlib import pyplot as plt
+    # from matplotlib import pyplot as plt
 
-    village.plot_houseMap()
+    # village.plot_houseMap()
     # village.plot()
-    plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":
@@ -61,4 +62,5 @@ if __name__ == "__main__":
         else:
             editor.ingame_print(f"Done in {elapsed_time:.2f}s!")
     except Exception as e:
+        traceback.print_exc()
         editor.ingame_exception(e)
