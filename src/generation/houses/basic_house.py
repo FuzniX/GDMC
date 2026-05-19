@@ -53,6 +53,8 @@ class BasicHouse(House):
         Builds the house.
         :return: The house object itself
         """
+        super().build()
+
         with self.editor.pushTransform(
             Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
         ):

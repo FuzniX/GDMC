@@ -3,12 +3,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from gdpc.block import Block
-from gdpc.editor import Editor
 from gdpc.transform import Transform
 from matplotlib.axes import Axes
 
 from src.simulation.enums import InfectionStatus
-from src.utils import mix
+from src.utils import CustomEditor, mix
 
 if TYPE_CHECKING:
     from src.simulation.player import Player
@@ -57,7 +56,7 @@ class House[P: Player]:
 
     player: P
 
-    editor: Editor
+    editor: CustomEditor
 
     x: int
     y: int
@@ -95,7 +94,7 @@ class House[P: Player]:
         Calculates the local bounding box (minX, maxX, minZ, maxZ)
         relative to (0,0).
         """
-        return -1, self.width + 1, -1, self.depth
+        return -1, self.width + 1, -1, self.depth + 1
 
     def get_footprint(self) -> tuple[int, int, int, int]:
         """
@@ -127,12 +126,27 @@ class House[P: Player]:
 
         return baseX, endX, baseZ, endZ
 
+    def clean_vegetation(self) -> None:
+        """Scan the house 3D footprint space to clear intersecting trees."""
+        baseX, endX, baseZ, endZ = self.get_footprint()
+
+        # Delegate the 3D boundary cleaning task directly to the CustomEditor
+        self.editor.clean_vegetation_area(
+            min_x=baseX,
+            max_x=endX,
+            min_z=baseZ,
+            max_z=endZ,
+            min_y=self.y,
+            max_y=self.y + self.height,
+        )
+
     @abstractmethod
     def build(self) -> "House":
         """
         Builds the house.
         :return: The house object itself
         """
+        self.clean_vegetation()
 
     @abstractmethod
     def plot(self, ax: Axes) -> "House":

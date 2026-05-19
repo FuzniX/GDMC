@@ -6,7 +6,8 @@ from typing import Callable, Generator, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 from gdpc.block import Block
-from gdpc.editor import Editor
+
+from src.utils import CustomEditor
 
 from ..simulation.player import Player
 from ..simulation.simulation import Simulation
@@ -60,7 +61,7 @@ class Village:
     Dataclass representing a village that is built in Minecraft
     """
 
-    editor: Editor
+    editor: CustomEditor
 
     simulation: Simulation
 
@@ -77,13 +78,16 @@ class Village:
         Prepares the houses to build.
         :return: None
         """
+        assert self.editor.worldSlice is not None
+        self.heightmaps = self.editor.worldSlice.heightmaps["MOTION_BLOCKING_NO_LEAVES"]
         self.buildArea = self.editor.getBuildArea()
         self.houseMap = np.zeros((self.buildArea.size.x, self.buildArea.size.z))
 
-        self.generate_pirate_zone()
-        self.generate_streets()
+        self._sanitize_heightmap_vegetation()
+        self._generate_pirate_zone()
+        self._generate_streets()
 
-    def generate_pirate_zone(self) -> None:
+    def _generate_pirate_zone(self) -> None:
         """
         Defines a fully connected zone for pirates in the houseMap before placing houses.
         The zone size is proportional to the ratio of pirates among all players.
@@ -193,7 +197,7 @@ class Village:
 
         return [cx, cz, angle]
 
-    def generate_streets(
+    def _generate_streets(
         self,
         iterations: int = 3,
         step_length: int = 24,
@@ -241,10 +245,12 @@ class Village:
             elif cmd == "]" and stack:
                 state = list(stack.pop())
 
-        # Build building borders layout
-        self.place_street_positions()
+        self._clean_street_vegetation()
 
-    def place_street_positions(self) -> None:
+        # Build building borders layout
+        self._place_street_positions()
+
+    def _place_street_positions(self) -> None:
         max_dist = 5
 
         for get_street_slice, get_target_slice, direction in zip(
@@ -275,11 +281,6 @@ class Village:
                 target_view[mask] = direction
 
     @property
-    def heightmaps(self) -> np.ndarray:
-        assert self.editor.worldSlice is not None
-        return self.editor.worldSlice.heightmaps["MOTION_BLOCKING_NO_LEAVES"]
-
-    @property
     def houses(self) -> Generator[House, None, list[House]]:
         if self._houses is not None:
             return self._houses
@@ -308,7 +309,7 @@ class Village:
                 editor=self.editor,
                 x=(x := randint(0, self.buildArea.size.x - 1)),
                 z=(z := randint(0, self.buildArea.size.z - 1)),
-                y=self.heightmaps[x, z] - 1,
+                y=self._get_true_ground_y(x, z, self.heightmaps[x, z] - 1),
                 # height=self.height(),
                 # depth=self.depth(),
                 # width=self.width(),
@@ -322,6 +323,56 @@ class Village:
             raise HouseOverlapError("Impossible to place house")
 
         return house
+
+    def _get_true_ground_y(self, x: int, z: int, raw_y: int) -> int:
+        """
+        Scans downwards from the raw heightmap Y to find the actual solid
+        ground, skipping logs.
+        """
+        current_y = raw_y
+        # Blocks we want to ignore when looking for the ground
+        ignored_keywords = ["leaves", "log", "wood", "air", "plant", "flower", "snow"]
+
+        while current_y > 0:
+            block = self.editor.getBlock((x, current_y, z))
+            assert block.id is not None
+
+            # Check if the block is an tree/vegetation element
+            is_vegetation = any(key in block.id for key in ignored_keywords)
+
+            if not is_vegetation:
+                # We found real ground (grass_block, dirt, sand, stone, etc.)
+                return current_y
+
+            current_y -= 1
+
+        return raw_y
+
+    def _sanitize_heightmap_vegetation(self) -> None:
+        """Filter the entire heightmap matrix to remove tree height bumps."""
+        size_x, size_z = self.houseMap.shape
+        for x in range(size_x):
+            for z in range(size_z):
+                raw_y = self.heightmaps[x, z]
+                # Overwrite with the filtered flat ground elevation
+                self.heightmaps[x, z] = self._get_true_ground_y(x, z, raw_y)
+
+    def _clean_street_vegetation(self, max_check_height: int = 15) -> None:
+        """Scan all drawn streets and trigger wood/leaves vaporization."""
+        size_x, size_z = self.houseMap.shape
+
+        for x in range(size_x):
+            for z in range(size_z):
+                if self.houseMap[x, z] != STREET_BLOCK:
+                    continue
+
+                ground_y = self.heightmaps[x, z]
+                # Look for tree parts on or floating directly above the street
+                for y in range(ground_y + 1, ground_y + max_check_height):
+                    block = self.editor.getBlock((x, y, z))
+                    assert block.id is not None
+                    if self.editor.is_tree_block(block.id):
+                        self.editor.destroy_tree_flood_fill((x, y, z))
 
     def rotation(self, x: int, z: int) -> int:
         return STREET_ROTATIONS[self.houseMap[x, z]]
@@ -343,14 +394,12 @@ class Village:
         # Pirates
         for x, z in np.argwhere(self.houseMap == PIRATE_BLOCK):
             self.editor.placeBlock(
-                (x, self.heightmaps[x, z] - 1, z), Block("black_concrete")
+                (x, self.heightmaps[x, z], z), Block("black_concrete")
             )
 
         # Streets
         for x, z in np.argwhere(self.houseMap == STREET_BLOCK):
-            self.editor.placeBlock(
-                (x, self.heightmaps[x, z] - 1, z), Block("dirt_path")
-            )
+            self.editor.placeBlock((x, self.heightmaps[x, z], z), Block("dirt_path"))
 
     def get_house_footprint(
         self, house: House

@@ -98,6 +98,8 @@ class MerchantHouse(House[Merchant]):
         self.foundation_height = 2
 
     def build(self) -> "MerchantHouse":
+        super().build()
+
         with self.editor.pushTransform(
             Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
         ):
@@ -299,7 +301,13 @@ class MerchantHouse(House[Merchant]):
             Block("stone_brick_stairs", {"facing": "south"}),
             Block("cracked_stone_bricks"),
         )
+        below_block = self.transformed(
+            Block("stone_brick"),
+            Block("cracked_stone_bricks"),
+        )
         self.editor.placeBlock((door_x, door_y - 1, door_z - 1), stair_block)
+        self.editor.placeBlock((door_x, door_y - 2, door_z - 2), stair_block)
+        self.editor.placeBlock((door_x, door_y - 2, door_z - 1), below_block)
 
     def build_windows(self) -> None:
         """Embed window frames and side shutter trapdoors across center wall profiles."""
@@ -411,41 +419,6 @@ class MerchantHouse(House[Merchant]):
         min_z -= shop_extension
 
         return min_x, max_x, min_z, max_z
-
-    # def get_footprint(self) -> tuple[int, int, int, int]:
-    #     baseX, endX, baseZ, endZ = super().get_footprint()
-
-    #     nb_shops = len(self.player.store)
-    #     shop_w = 3
-    #     spacing = 1
-    #     total_shops_width = (nb_shops * shop_w) + ((nb_shops - 1) * spacing)
-    #     shop_extension = 5
-
-    #     # Expand footprint boundaries based on local rotational facing direction
-    #     if self.rotation % 2 == 0:
-    #         house_w = endX - baseX
-    #         if total_shops_width > house_w:
-    #             diff = (total_shops_width - house_w) // 2
-    #             baseX -= diff
-    #             endX += diff
-
-    #         if self.rotation == 0:
-    #             baseZ -= shop_extension
-    #         else:
-    #             endZ += shop_extension
-    #     else:
-    #         house_d = endZ - baseZ
-    #         if total_shops_width > house_d:
-    #             diff = (total_shops_width - house_d) // 2
-    #             baseZ -= diff
-    #             endZ += diff
-
-    #         if self.rotation == 1:
-    #             baseX -= shop_extension
-    #         else:
-    #             endX += shop_extension
-
-    #     return baseX, endX, baseZ, endZ
 
     def plot(self, ax: Axes) -> "MerchantHouse":
         rect = patches.Rectangle(
