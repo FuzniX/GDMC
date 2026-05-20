@@ -7,7 +7,7 @@ from ..simulation.simulation import Simulation
 from ..utils import AllowedTimeExceededError, CustomEditor
 from .village import Village
 
-ALLOWED_TIME = 40  # seconds
+ALLOWED_TIME = 600  # seconds
 
 
 def main():
@@ -62,5 +62,4 @@ if __name__ == "__main__":
         else:
             editor.ingame_print(f"Done in {elapsed_time:.2f}s!")
     except Exception as e:
-        traceback.print_exc()
         editor.ingame_exception(e)

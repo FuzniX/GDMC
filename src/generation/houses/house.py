@@ -67,25 +67,18 @@ class House[P: Player]:
     width: int
     rotation: int
 
-    @property
-    def block_proportion(self) -> dict[str, int]:
-        """
-        The proportion of cobweb in the house.
-        :return: The cobweb proportion
-        """
-        return BLOCK_PROPORTION[self.player.infection_status]
-
     def transformed(self, normal: Block, damaged: Block) -> list[Block]:
         """
         The cobweb blocks in the house.
         :return: The cobweb blocks
         """
+        props = BLOCK_PROPORTION[self.player.infection_status]
         return mix(
             [
-                (normal, self.block_proportion["normal"]),
-                (damaged, self.block_proportion["damaged"]),
-                (COBWEB, self.block_proportion["cobweb"]),
-                (AIR, self.block_proportion["air"]),
+                (normal, props["normal"]),
+                (damaged, props["damaged"]),
+                (COBWEB, props["cobweb"]),
+                (AIR, props["air"]),
             ]
         )
 

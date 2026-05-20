@@ -9,6 +9,7 @@ from matplotlib import patches
 from matplotlib.axes import Axes
 
 from src.simulation.merchant import Merchant
+from src.utils import get_palette_for_biome
 
 from .house import House
 
@@ -20,28 +21,28 @@ class MerchantHouse(House[Merchant]):
     structural timber framing, a stone baseline, and exterior market stalls.
     """
 
-    foundationPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [Block("stone_bricks"), Block("cracked_stone_bricks")],
-        [Block("cobblestone"), Block("mossy_cobblestone")],
-    ]
-    pillarPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [Block("stripped_oak_log"), Block("stripped_birch_log")],
-        [Block("stripped_spruce_log"), Block("stripped_dark_oak_log")],
-    ]
-    wallPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [Block("white_terracotta"), Block("bone_block")],
-        [Block("smooth_sandstone"), Block("sandstone")],
-    ]
-    roofPalette: ClassVar[Sequence[Sequence[Sequence[Block]]]] = [
-        [
-            [Block("oak_stairs"), Block("birch_stairs")],
-            [Block("oak_planks"), Block("birch_planks")],
-        ],
-        [
-            [Block("spruce_stairs"), Block("spruce_stairs")],
-            [Block("spruce_planks"), Block("spruce_planks")],
-        ],
-    ]
+    # foundationPalette: ClassVar[Sequence[Sequence[Block]]] = [
+    #     [Block("stone_bricks"), Block("cracked_stone_bricks")],
+    #     [Block("cobblestone"), Block("mossy_cobblestone")],
+    # ]
+    # pillarPalette: ClassVar[Sequence[Sequence[Block]]] = [
+    #     [Block("stripped_oak_log"), Block("stripped_birch_log")],
+    #     [Block("stripped_spruce_log"), Block("stripped_dark_oak_log")],
+    # ]
+    # wallPalette: ClassVar[Sequence[Sequence[Block]]] = [
+    #     [Block("white_terracotta"), Block("bone_block")],
+    #     [Block("smooth_sandstone"), Block("sandstone")],
+    # ]
+    # roofPalette: ClassVar[Sequence[Sequence[Sequence[Block]]]] = [
+    #     [
+    #         [Block("oak_stairs"), Block("birch_stairs")],
+    #         [Block("oak_planks"), Block("birch_planks")],
+    #     ],
+    #     [
+    #         [Block("spruce_stairs"), Block("spruce_stairs")],
+    #         [Block("spruce_planks"), Block("spruce_planks")],
+    #     ],
+    # ]
     roofTrimPalette: ClassVar[Sequence[Sequence[Sequence[Block]]]] = [
         [
             [Block("stone_brick_stairs"), Block("cobblestone_stairs")],
@@ -60,14 +61,16 @@ class MerchantHouse(House[Merchant]):
 
     def __post_init__(self) -> None:
         """Initialize and resolve random material selections and core building dimensions."""
-        self.foundation = self.transformed(*choice(self.foundationPalette))
-        self.pillar = self.transformed(*choice(self.pillarPalette))
-        self.wall = self.transformed(*choice(self.wallPalette))
+        biome_string = self.editor.getBiome((self.x, self.y, self.z))
+        palette = get_palette_for_biome(biome_string)
+
+        self.foundation = self.transformed(*palette["foundation"])
+        self.pillar = self.transformed(*palette["pillar"])
+        self.wall = self.transformed(*palette["wall"])
 
         # Select primary wooden roof components
-        (roofStairs, roofDamagedStairs), (roofBlock, roofDamagedBlock) = choice(
-            self.roofPalette
-        )
+        (roofStairs, roofDamagedStairs) = palette["roof_stairs"]
+        (roofBlock, roofDamagedBlock) = palette["roof_block"]
         self.roofStairsBase = (roofStairs, roofDamagedStairs)
 
         # Map corresponding straight wooden slabs
@@ -77,14 +80,16 @@ class MerchantHouse(House[Merchant]):
         )
 
         # Select stone border outline components
-        (trimStairs, trimDamaged), (trimBlock, trimBlockDamaged) = choice(
+        (trimStairs, trimStairsDamaged), (trimBlock, trimBlockDamaged) = choice(
             self.roofTrimPalette
         )
-        self.roofTrim = (trimStairs, trimDamaged)
+        assert trimStairs.id is not None
+        assert trimStairsDamaged.id is not None
+        self.roofTrim = (trimStairs, trimStairsDamaged)
         self.roofTrimBlock = (trimBlock, trimBlockDamaged)
         self.roofTrimSlab = (
             Block(trimStairs.id.replace("stairs", "slab")),
-            Block(trimDamaged.id.replace("stairs", "slab")),
+            Block(trimStairsDamaged.id.replace("stairs", "slab")),
         )
 
         # Enforce odd dimensions for clean geometric alignment
@@ -126,6 +131,14 @@ class MerchantHouse(House[Merchant]):
         """Erect hollow layout walls and reinforce corners with vertical logs."""
         start_y = self.foundation_height
         end_y = self.height - 1
+
+        # Clear the inside of the house
+        placeCuboid(
+            self.editor,
+            (0, start_y, 0),
+            (self.width - 1, end_y, self.depth - 1),
+            Block("air"),
+        )
 
         placeCuboidHollow(
             self.editor,
@@ -302,7 +315,7 @@ class MerchantHouse(House[Merchant]):
             Block("cracked_stone_bricks"),
         )
         below_block = self.transformed(
-            Block("stone_brick"),
+            Block("stone_bricks"),
             Block("cracked_stone_bricks"),
         )
         self.editor.placeBlock((door_x, door_y - 1, door_z - 1), stair_block)

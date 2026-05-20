@@ -1,4 +1,5 @@
 import random
+import time
 from dataclasses import dataclass, field
 from random import choice, randint
 from typing import Callable, Generator, Optional
@@ -7,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from gdpc.block import Block
 
-from src.utils import CustomEditor
+from src.utils import CustomEditor, get_palette_for_biome
 
 from ..simulation.player import Player
 from ..simulation.simulation import Simulation
@@ -98,7 +99,7 @@ class Village:
 
         # Number of blocks needed for the pirate zone
         nb_pirates = len(self.simulation.pirates)
-        pirate_ratio = nb_pirates / total_players
+        pirate_ratio = nb_pirates / total_players / 2
         blocks_to_place = int(self.houseMap.size * pirate_ratio)
 
         if blocks_to_place <= 0:
@@ -114,7 +115,8 @@ class Village:
         blocks_to_place -= 1
 
         # Set to track candidate frontier blocks
-        frontier = set()
+        frontier = []
+        visited = set()
 
         def add_neighbors(x: int, z: int) -> None:
             # Neighbors (up, down, left, right)
@@ -122,25 +124,26 @@ class Village:
             for nx, nz in neighbors:
                 # Check bounds and ensure the cell is empty (0)
                 if 0 <= nx < size_x and 0 <= nz < size_z:
-                    if self.houseMap[nx, nz] == FREE_BLOCK:
-                        frontier.add((nx, nz))
+                    if self.houseMap[nx, nz] == FREE_BLOCK and (nx, nz) not in visited:
+                        frontier.append((nx, nz))
+                        visited.add((nx, nz))  # Marked as seen
 
         # Initialize the frontier around the starting point
+        visited.add((start_x, start_z))
         add_neighbors(start_x, start_z)
 
         # Expand zone until required size is reached
         while blocks_to_place > 0 and frontier:
             # Select a random cell from the current frontier
-            next_cell = random.choice(list(frontier))
-            frontier.remove(next_cell)
-
-            cx, cz = next_cell
+            idx = randint(0, len(frontier) - 1)
+            cx, cz = frontier[idx]
+            frontier[idx] = frontier[-1]  # Remplace par le dernier
+            frontier.pop()  # Supprime le dernier
 
             # Double-check that it hasn't been filled by a parallel choice
             if self.houseMap[cx, cz] == FREE_BLOCK:
                 self.houseMap[cx, cz] = PIRATE_BLOCK
                 blocks_to_place -= 1
-
                 # Expand the frontier with the new cell's neighbors
                 add_neighbors(cx, cz)
 
@@ -287,6 +290,8 @@ class Village:
 
         self._houses = []
 
+        random.shuffle(self.simulation.players)
+
         for player in self.simulation.players:
             try:
                 house = self.get_house(player)
@@ -304,25 +309,43 @@ class Village:
         return self._houses
 
     def get_house(self, player: Player) -> House:
-        for _ in range(100_000):
-            house = player.house(
-                editor=self.editor,
-                x=(x := randint(0, self.buildArea.size.x - 1)),
-                z=(z := randint(0, self.buildArea.size.z - 1)),
-                y=self._get_true_ground_y(x, z, self.heightmaps[x, z] - 1),
-                # height=self.height(),
-                # depth=self.depth(),
-                # width=self.width(),
-                # rotation=self.rotation(x, z),
-                rotation=randint(0, 3),
-            )
+        """
+        Finds a valid placement for a player's house by targeting
+        existing streets to maximize performance.
+        """
+        # Locate coordinates of all directional street tiles
+        street_mask = np.isin(self.houseMap, STREET_DIRECTIONS)
+        street_coords = np.argwhere(street_mask)
 
-            if self.can_place_house(house):
-                break
-        else:
-            raise HouseOverlapError("Impossible to place house")
+        if street_coords.size == 0:
+            raise HouseOverlapError("No streets found to place a house.")
 
-        return house
+        # Convert matrix matches into a list and shuffle positions
+        candidates = [tuple(coord) for coord in street_coords]
+        random.shuffle(candidates)
+
+        # Iterate through shuffled path tiles to find a valid layout match
+        for x, z in candidates:
+            ground_y = self.heightmaps[x, z]
+
+            # Randomize orientation choices for structural diversity
+            rotations = [0, 1, 2, 3]
+            random.shuffle(rotations)
+
+            for rot in rotations:
+                house = player.house(
+                    editor=self.editor,
+                    x=x,
+                    z=z,
+                    y=ground_y,
+                    rotation=rot,
+                )
+
+                if self.can_place_house(house):
+                    return house
+
+        # Raise an exception if the grid space is completely saturated
+        raise HouseOverlapError("Impossible to place house after scanning paths.")
 
     def _get_true_ground_y(self, x: int, z: int, raw_y: int) -> int:
         """
@@ -331,9 +354,21 @@ class Village:
         """
         current_y = raw_y
         # Blocks we want to ignore when looking for the ground
-        ignored_keywords = ["leaves", "log", "wood", "air", "plant", "flower", "snow"]
+        ignored_keywords = [
+            "leaves",
+            "log",
+            "wood",
+            "air",
+            "plant",
+            "flower",
+            "snow",
+            "fern",
+            "_grass",
+            "bamboo",
+            "leaf_litter",
+        ]
 
-        while current_y > 0:
+        while current_y > -64:
             block = self.editor.getBlock((x, current_y, z))
             assert block.id is not None
 
@@ -359,20 +394,16 @@ class Village:
 
     def _clean_street_vegetation(self, max_check_height: int = 15) -> None:
         """Scan all drawn streets and trigger wood/leaves vaporization."""
-        size_x, size_z = self.houseMap.shape
+        street_coords = np.argwhere(self.houseMap == STREET_BLOCK)
 
-        for x in range(size_x):
-            for z in range(size_z):
-                if self.houseMap[x, z] != STREET_BLOCK:
-                    continue
-
-                ground_y = self.heightmaps[x, z]
-                # Look for tree parts on or floating directly above the street
-                for y in range(ground_y + 1, ground_y + max_check_height):
-                    block = self.editor.getBlock((x, y, z))
-                    assert block.id is not None
-                    if self.editor.is_tree_block(block.id):
-                        self.editor.destroy_tree_flood_fill((x, y, z))
+        for x, z in street_coords:
+            ground_y = self.heightmaps[x, z]
+            # Look for tree parts on or floating directly above the street
+            for y in range(ground_y + 1, ground_y + max_check_height):
+                block = self.editor.getBlock((x, y, z))
+                assert block.id is not None
+                if self.editor.is_tree_block(block.id):
+                    self.editor.destroy_tree_flood_fill((x, y, z))
 
     def rotation(self, x: int, z: int) -> int:
         return STREET_ROTATIONS[self.houseMap[x, z]]
@@ -399,7 +430,9 @@ class Village:
 
         # Streets
         for x, z in np.argwhere(self.houseMap == STREET_BLOCK):
-            self.editor.placeBlock((x, self.heightmaps[x, z], z), Block("dirt_path"))
+            biome_string = self.editor.getBiome((x, int(self.heightmaps[x, z]), z))
+            palette = get_palette_for_biome(biome_string)
+            self.editor.placeBlock((x, self.heightmaps[x, z], z), palette["street"])
 
     def get_house_footprint(
         self, house: House
@@ -431,16 +464,17 @@ class Village:
 
         house_zone = self.houseMap[min_x:max_x, min_z:max_z]
 
-        # Whether the zone is clear
-        is_clear = np.all(np.isin(house_zone, [FREE_BLOCK, *STREET_DIRECTIONS]))
-        if not is_clear:
+        mask_street = np.isin(house_zone, STREET_DIRECTIONS)
+        mask_free = house_zone == FREE_BLOCK
+
+        # Whether the zone is clear or is in a street-adjacent zone
+        if not np.all(mask_free | mask_street):
             return False
 
         # Find local coordinates of street blocks
-        mask_street = np.isin(house_zone, STREET_DIRECTIONS)
         street_indices = np.argwhere(mask_street)
 
-        if len(street_indices) == 0:
+        if street_indices.size == 0:
             return False  # No nearby street blocks
 
         # Check rotation compatibility
