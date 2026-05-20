@@ -77,6 +77,14 @@ class BasicHouse(House):
         Builds the shape of the house
         :return: None
         """
+        # Clear the inside of the house
+        placeCuboid(
+            self.editor,
+            (0, 0, 0),
+            (self.width, self.height, self.depth),
+            Block("air"),
+        )
+
         # Build walls
         placeCuboidHollow(
             self.editor,
