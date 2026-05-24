@@ -1,6 +1,7 @@
 import random
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Optional
+from bisect import bisect_left
 
 from log.config import get_sim_logger
 from src.generation.houses.house import House
@@ -271,12 +272,50 @@ class Pirate(Player["Villager | Merchant | Shop"]):
     def log(self) -> str:
         return super().log + (f",{self.bounty},{self.food},{self.days_at_sea}")
 
+    @property
+    def bounty_quartile(self) -> int:
+        """
+        Returns the quartile (1–4) of this pirate based on their bounty
+        relative to all alive pirates in the simulation.
+        Pirates with no bounty or in Q1 get 1 floor; Q4 gets 4 floors.
+        """
+        all_bounties = sorted(
+            p.bounty for p in self.simulation.alive_pirates
+        )
+        n = len(all_bounties)
+        if n <= 1:
+            return 1
+
+        rank = bisect_left(all_bounties, self.bounty)
+        rank = min(rank, n - 1)  # securite si bounty depasse le max connu
+        ratio = rank / (n - 1)  # 0.0 → 1.0
+
+        if ratio < 0.25:
+            return 1
+        elif ratio < 0.50:
+            return 2
+        elif ratio < 0.75:
+            return 3
+        else:
+            return 4
+
     def house(self, *args, **kwargs) -> House:
+        floors = self.bounty_quartile
+        base_size = 5
+        size_step = 2
+        size = base_size + (floors - 1) * size_step
         return PirateHouse(
             self,
-            height=5,
-            depth=5,
-            width=4,
+            floors=floors,
+            height=4,
+            depth=size,
+            width=size,
             *args,
             **kwargs,
         )
+
+    @staticmethod
+    def build_manor(pirates: "list[Pirate]", *args, **kwargs) -> House:
+        from src.generation.houses.pirate_manor import PirateManor
+
+        return PirateManor.from_pirates(pirates, *args, **kwargs)

@@ -177,6 +177,7 @@ class Simulation:
                 bounty=random.randint(0, 10000),
                 food=random.randint(0, 100),
             )
+            p.money 
             players.append(p)
             i += 1
 

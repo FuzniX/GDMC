@@ -63,10 +63,16 @@ class BasicHouse(House):
 
     def build_shape(self) -> None:
         """
-        Builds the shape of the house
+        Builds the shape of the house and clears the interior
         :return: None
         """
-        # Build walls
+        placeCuboid(
+            self.editor,
+            (1, 1, 1),
+            (self.width - 1, self.height - 1, self.depth - 1),
+            Block("air")
+        )
+
         placeCuboidHollow(
             self.editor,
             (0, 0, 0),
@@ -74,7 +80,6 @@ class BasicHouse(House):
             self.wall,
         )
 
-        # Place blocks below to fit terrain
         placeCuboid(
             self.editor,
             (0, 0, 0),
