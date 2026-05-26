@@ -3,11 +3,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from gdpc.block import Block
-from gdpc.editor import Editor
+from gdpc.transform import Transform
 from matplotlib.axes import Axes
 
 from src.simulation.enums import InfectionStatus
-from src.utils import mix
+from src.utils import CustomEditor, mix
 
 if TYPE_CHECKING:
     from src.simulation.player import Player
@@ -56,7 +56,7 @@ class House[P: Player]:
 
     player: P
 
-    editor: Editor
+    editor: CustomEditor
 
     x: int
     y: int
@@ -67,49 +67,71 @@ class House[P: Player]:
     width: int
     rotation: int
 
-    @property
-    def block_proportion(self) -> dict[str, int]:
-        """
-        The proportion of cobweb in the house.
-        :return: The cobweb proportion
-        """
-        return BLOCK_PROPORTION[self.player.infection_status]
-
     def transformed(self, normal: Block, damaged: Block) -> list[Block]:
         """
         The cobweb blocks in the house.
         :return: The cobweb blocks
         """
+        props = BLOCK_PROPORTION[self.player.infection_status]
         return mix(
             [
-                (normal, self.block_proportion["normal"]),
-                (damaged, self.block_proportion["damaged"]),
-                (COBWEB, self.block_proportion["cobweb"]),
-                (AIR, self.block_proportion["air"]),
+                (normal, props["normal"]),
+                (damaged, props["damaged"]),
+                (COBWEB, props["cobweb"]),
+                (AIR, props["air"]),
             ]
         )
 
+    def get_local_footprint(self) -> tuple[int, int, int, int]:
+        """
+        Calculates the local bounding box (minX, maxX, minZ, maxZ)
+        relative to (0,0).
+        """
+        return -1, self.width + 1, -1, self.depth + 1
+
     def get_footprint(self) -> tuple[int, int, int, int]:
         """
-        Calculates the raw bounding box (baseX, endX, baseZ, endZ) of the house
-        including any external extensions (like merchant shops), without matrix bounds checking.
+        Transforms the unrotated local footprint boundaries into global world coordinates
         """
-        baseX = self.x
-        baseZ = self.z
+        min_x, max_x, min_z, max_z = self.get_local_footprint()
 
-        match self.rotation:
-            case 1:
-                baseX = self.x - self.depth
-            case 2:
-                baseX = self.x - self.width
-                baseZ = self.z - self.depth
-            case 3:
-                baseZ = self.z - self.width
+        # Instantiate the exact spatial translation and rotation matrix
+        house_transform = Transform(
+            translation=(self.x, self.y, self.z), rotation=self.rotation
+        )
 
-        endX = baseX + 3 + (self.width if self.rotation % 2 == 0 else self.depth)
-        endZ = baseZ + 3 + (self.depth if self.rotation % 2 == 0 else self.width)
+        # Map the 4 local 3D corners of the local bounding box layout
+        local_corners = [
+            (min_x, 0, min_z),
+            (max_x, 0, min_z),
+            (min_x, 0, max_z),
+            (max_x, 0, max_z),
+        ]
+
+        # Process corners through the transform to project them into global world space
+        global_corners = [house_transform.apply(corner) for corner in local_corners]
+
+        # Extract extreme limits to form the final globally aligned 2D bounding box
+        baseX = min(c[0] for c in global_corners)
+        endX = max(c[0] for c in global_corners)
+        baseZ = min(c[2] for c in global_corners)
+        endZ = max(c[2] for c in global_corners)
 
         return baseX, endX, baseZ, endZ
+
+    def clean_vegetation(self) -> None:
+        """Scan the house 3D footprint space to clear intersecting trees."""
+        baseX, endX, baseZ, endZ = self.get_footprint()
+
+        # Delegate the 3D boundary cleaning task directly to the CustomEditor
+        self.editor.clean_vegetation_area(
+            min_x=baseX,
+            max_x=endX,
+            min_z=baseZ,
+            max_z=endZ,
+            min_y=self.y,
+            max_y=self.y + self.height,
+        )
 
     @abstractmethod
     def build(self) -> "House":
@@ -117,6 +139,7 @@ class House[P: Player]:
         Builds the house.
         :return: The house object itself
         """
+        self.clean_vegetation()
 
     @abstractmethod
     def plot(self, ax: Axes) -> "House":

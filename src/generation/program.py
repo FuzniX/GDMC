@@ -6,14 +6,14 @@ from ..simulation.simulation import Simulation
 from ..utils import AllowedTimeExceededError, CustomEditor
 from .village import Village
 
-ALLOWED_TIME = 40  # seconds
+ALLOWED_TIME = 600  # seconds
 
 
 def main():
     village = Village(
         editor=editor,
         simulation=Simulation.generate(
-            nb_villagers=10,
+            nb_villagers=20,
             nb_merchants=10,
             nb_pirates=10,
         ),
@@ -22,11 +22,11 @@ def main():
     village.build()
     editor.flushBuffer()
 
-    from matplotlib import pyplot as plt
+    # from matplotlib import pyplot as plt
 
-    village.plot_houseMap()
+    # village.plot_houseMap()
     # village.plot()
-    plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":

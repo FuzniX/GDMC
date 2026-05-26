@@ -9,6 +9,7 @@ from matplotlib import patches
 from matplotlib.axes import Axes
 
 from src.simulation.merchant import Merchant
+from src.utils import get_palette_for_biome
 
 from .house import House
 
@@ -20,28 +21,28 @@ class MerchantHouse(House[Merchant]):
     structural timber framing, a stone baseline, and exterior market stalls.
     """
 
-    foundationPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [Block("stone_bricks"), Block("cracked_stone_bricks")],
-        [Block("cobblestone"), Block("mossy_cobblestone")],
-    ]
-    pillarPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [Block("stripped_oak_log"), Block("stripped_birch_log")],
-        [Block("stripped_spruce_log"), Block("stripped_dark_oak_log")],
-    ]
-    wallPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [Block("white_terracotta"), Block("bone_block")],
-        [Block("smooth_sandstone"), Block("sandstone")],
-    ]
-    roofPalette: ClassVar[Sequence[Sequence[Sequence[Block]]]] = [
-        [
-            [Block("oak_stairs"), Block("birch_stairs")],
-            [Block("oak_planks"), Block("birch_planks")],
-        ],
-        [
-            [Block("spruce_stairs"), Block("spruce_stairs")],
-            [Block("spruce_planks"), Block("spruce_planks")],
-        ],
-    ]
+    # foundationPalette: ClassVar[Sequence[Sequence[Block]]] = [
+    #     [Block("stone_bricks"), Block("cracked_stone_bricks")],
+    #     [Block("cobblestone"), Block("mossy_cobblestone")],
+    # ]
+    # pillarPalette: ClassVar[Sequence[Sequence[Block]]] = [
+    #     [Block("stripped_oak_log"), Block("stripped_birch_log")],
+    #     [Block("stripped_spruce_log"), Block("stripped_dark_oak_log")],
+    # ]
+    # wallPalette: ClassVar[Sequence[Sequence[Block]]] = [
+    #     [Block("white_terracotta"), Block("bone_block")],
+    #     [Block("smooth_sandstone"), Block("sandstone")],
+    # ]
+    # roofPalette: ClassVar[Sequence[Sequence[Sequence[Block]]]] = [
+    #     [
+    #         [Block("oak_stairs"), Block("birch_stairs")],
+    #         [Block("oak_planks"), Block("birch_planks")],
+    #     ],
+    #     [
+    #         [Block("spruce_stairs"), Block("spruce_stairs")],
+    #         [Block("spruce_planks"), Block("spruce_planks")],
+    #     ],
+    # ]
     roofTrimPalette: ClassVar[Sequence[Sequence[Sequence[Block]]]] = [
         [
             [Block("stone_brick_stairs"), Block("cobblestone_stairs")],
@@ -60,14 +61,16 @@ class MerchantHouse(House[Merchant]):
 
     def __post_init__(self) -> None:
         """Initialize and resolve random material selections and core building dimensions."""
-        self.foundation = self.transformed(*choice(self.foundationPalette))
-        self.pillar = self.transformed(*choice(self.pillarPalette))
-        self.wall = self.transformed(*choice(self.wallPalette))
+        biome_string = self.editor.getBiome((self.x, self.y, self.z))
+        palette = get_palette_for_biome(biome_string)
+
+        self.foundation = self.transformed(*palette["foundation"])
+        self.pillar = self.transformed(*palette["pillar"])
+        self.wall = self.transformed(*palette["wall"])
 
         # Select primary wooden roof components
-        (roofStairs, roofDamagedStairs), (roofBlock, roofDamagedBlock) = choice(
-            self.roofPalette
-        )
+        (roofStairs, roofDamagedStairs) = palette["roof_stairs"]
+        (roofBlock, roofDamagedBlock) = palette["roof_block"]
         self.roofStairsBase = (roofStairs, roofDamagedStairs)
 
         # Map corresponding straight wooden slabs
@@ -77,14 +80,16 @@ class MerchantHouse(House[Merchant]):
         )
 
         # Select stone border outline components
-        (trimStairs, trimDamaged), (trimBlock, trimBlockDamaged) = choice(
+        (trimStairs, trimStairsDamaged), (trimBlock, trimBlockDamaged) = choice(
             self.roofTrimPalette
         )
-        self.roofTrim = (trimStairs, trimDamaged)
+        assert trimStairs.id is not None
+        assert trimStairsDamaged.id is not None
+        self.roofTrim = (trimStairs, trimStairsDamaged)
         self.roofTrimBlock = (trimBlock, trimBlockDamaged)
         self.roofTrimSlab = (
             Block(trimStairs.id.replace("stairs", "slab")),
-            Block(trimDamaged.id.replace("stairs", "slab")),
+            Block(trimStairsDamaged.id.replace("stairs", "slab")),
         )
 
         # Enforce odd dimensions for clean geometric alignment
@@ -98,6 +103,8 @@ class MerchantHouse(House[Merchant]):
         self.foundation_height = 2
 
     def build(self) -> "MerchantHouse":
+        super().build()
+
         with self.editor.pushTransform(
             Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
         ):
@@ -124,6 +131,14 @@ class MerchantHouse(House[Merchant]):
         """Erect hollow layout walls and reinforce corners with vertical logs."""
         start_y = self.foundation_height
         end_y = self.height - 1
+
+        # Clear the inside of the house
+        placeCuboid(
+            self.editor,
+            (0, start_y, 0),
+            (self.width - 1, end_y, self.depth - 1),
+            Block("air"),
+        )
 
         placeCuboidHollow(
             self.editor,
@@ -299,7 +314,13 @@ class MerchantHouse(House[Merchant]):
             Block("stone_brick_stairs", {"facing": "south"}),
             Block("cracked_stone_bricks"),
         )
+        below_block = self.transformed(
+            Block("stone_bricks"),
+            Block("cracked_stone_bricks"),
+        )
         self.editor.placeBlock((door_x, door_y - 1, door_z - 1), stair_block)
+        self.editor.placeBlock((door_x, door_y - 2, door_z - 2), stair_block)
+        self.editor.placeBlock((door_x, door_y - 2, door_z - 1), below_block)
 
     def build_windows(self) -> None:
         """Embed window frames and side shutter trapdoors across center wall profiles."""
@@ -385,40 +406,32 @@ class MerchantHouse(House[Merchant]):
         self.editor.placeBlock((sx + 1, sy, sz), Block("chest", {"facing": "north"}))
         self.editor.placeBlock((sx + 1, sy + 1, sz), Block("air"))
 
-    def get_footprint(self) -> tuple[int, int, int, int]:
-        baseX, endX, baseZ, endZ = super().get_footprint()
+    def get_local_footprint(self) -> tuple[int, int, int, int]:
+        """
+        Computes the local unrotated footprint boundary, extending it
+        to account for the storefront shops row alignment.
+        """
+        # Get baseline structure footprint dimensions (0, width, 0, depth)
+        min_x, max_x, min_z, max_z = super().get_local_footprint()
 
+        # Calculate local storefront requirements
         nb_shops = len(self.player.store)
         shop_w = 3
         spacing = 1
         total_shops_width = (nb_shops * shop_w) + ((nb_shops - 1) * spacing)
         shop_extension = 5
 
-        # Expand footprint boundaries based on local rotational facing direction
-        if self.rotation % 2 == 0:
-            house_w = endX - baseX
-            if total_shops_width > house_w:
-                diff = (total_shops_width - house_w) // 2
-                baseX -= diff
-                endX += diff
+        # Expand the local X boundaries if the shops row is wider than the house
+        house_w = max_x - min_x
+        if total_shops_width > house_w:
+            diff = (total_shops_width - house_w) // 2
+            min_x -= diff
+            max_x += diff
 
-            if self.rotation == 0:
-                baseZ -= shop_extension
-            else:
-                endZ += shop_extension
-        else:
-            house_d = endZ - baseZ
-            if total_shops_width > house_d:
-                diff = (total_shops_width - house_d) // 2
-                baseZ -= diff
-                endZ += diff
+        # Shops sit directly in front of the building (negative local Z space)
+        min_z -= shop_extension
 
-            if self.rotation == 1:
-                baseX -= shop_extension
-            else:
-                endX += shop_extension
-
-        return baseX, endX, baseZ, endZ
+        return min_x, max_x, min_z, max_z
 
     def plot(self, ax: Axes) -> "MerchantHouse":
         rect = patches.Rectangle(

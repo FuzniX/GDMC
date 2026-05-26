@@ -8,6 +8,8 @@ from gdpc.transform import Transform
 from matplotlib import patches
 from matplotlib.axes import Axes
 
+from src.utils import get_palette_for_biome
+
 from .house import House
 
 
@@ -17,34 +19,41 @@ class BasicHouse(House):
     Dataclass representing a basic house that is built in Minecraft
     """
 
-    floorPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [Block("stone_bricks"), Block("cracked_stone_bricks")],
-        [Block("cobblestone"), Block("mossy_cobblestone")],
-    ]
-    wallPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [Block("oak_planks"), Block("birch_planks")],
-        [Block("spruce_planks"), Block("dark_oak_planks")],
-        [Block("white_terracotta"), Block("green_terracotta")],
-    ]
-    roofPalette: ClassVar[Sequence[Sequence[Sequence[Block]]]] = [
-        [
-            [Block("oak_stairs"), Block("birch_stairs")],
-            [Block("oak_planks"), Block("birch_planks")],
-        ],
-        [
-            [Block("spruce_stairs"), Block("dark_oak_stairs")],
-            [Block("spruce_planks"), Block("dark_oak_planks")],
-        ],
-        # [Block("cobblestone_stairs"), Block("cobblestone")],
-    ]
+    # floorPalette: ClassVar[Sequence[Sequence[Block]]] = [
+    #     [Block("stone_bricks"), Block("cracked_stone_bricks")],
+    #     [Block("cobblestone"), Block("mossy_cobblestone")],
+    # ]
+    # wallPalette: ClassVar[Sequence[Sequence[Block]]] = [
+    #     [Block("oak_planks"), Block("birch_planks")],
+    #     [Block("spruce_planks"), Block("dark_oak_planks")],
+    #     [Block("white_terracotta"), Block("green_terracotta")],
+    # ]
+    # roofPalette: ClassVar[Sequence[Sequence[Sequence[Block]]]] = [
+    #     [
+    #         [Block("oak_stairs"), Block("birch_stairs")],
+    #         [Block("oak_planks"), Block("birch_planks")],
+    #     ],
+    #     [
+    #         [Block("spruce_stairs"), Block("dark_oak_stairs")],
+    #         [Block("spruce_planks"), Block("dark_oak_planks")],
+    #     ],
+    # ]
 
     def __post_init__(self) -> None:
         """
         Variables to define after initialization/instanciation
         :return: Nothing
         """
-        self.wall = self.transformed(*choice(self.wallPalette))
-        self.floor = self.transformed(*choice(self.floorPalette))
+        biome_string = self.editor.getBiome((self.x, self.y, self.z))
+        palette = get_palette_for_biome(biome_string)
+
+        # Set the palette attributes expected by the building methods
+        self.floor = palette["foundation"]
+        self.wall = palette["wall"]
+        self.roof = palette["roof_stairs"], palette["roof_block"]
+
+        # self.wall = self.transformed(*choice(self.wallPalette))
+        # self.floor = self.transformed(*choice(self.floorPalette))
 
         self.halfWidth = self.width // 2
 
@@ -53,6 +62,8 @@ class BasicHouse(House):
         Builds the house.
         :return: The house object itself
         """
+        super().build()
+
         with self.editor.pushTransform(
             Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
         ):
@@ -66,13 +77,15 @@ class BasicHouse(House):
         Builds the shape of the house and clears the interior
         :return: None
         """
+        # Clear the inside of the house
         placeCuboid(
             self.editor,
-            (1, 1, 1),
-            (self.width - 1, self.height - 1, self.depth - 1),
-            Block("air")
+            (0, 0, 0),
+            (self.width, self.height, self.depth),
+            Block("air"),
         )
 
+        # Build walls
         placeCuboidHollow(
             self.editor,
             (0, 0, 0),
@@ -110,7 +123,8 @@ class BasicHouse(House):
         Builds the roof of the house
         :return: None
         """
-        (roofStairs, roofStairsDamaged), roofBlock = choice(self.roofPalette)
+        # (roofStairs, roofStairsDamaged), roofBlock = choice(self.roofPalette)
+        (roofStairs, roofStairsDamaged), roofBlock = self.roof
 
         roofStairsEast = self.transformed(
             Block(roofStairs.id, {"facing": "east"}),
