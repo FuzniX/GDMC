@@ -7,42 +7,27 @@ from gdpc.transform import Transform
 from matplotlib import patches
 from matplotlib.axes import Axes
 
+from src.utils import get_palette_for_biome
+
 from .house import House
 
 
 @dataclass
 class PirateHouse(House["Pirate"]):
     floors: int = 1
-    wallPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [Block("polished_blackstone_bricks"), Block("dark_oak_planks")],
-        [Block("cracked_polished_blackstone_bricks"), Block("spruce_planks")],
-    ]
-    pillarPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [Block("dark_oak_log"), Block("dark_oak_log")],
-    ]
-    foundationPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [Block("blackstone"), Block("cobblestone")],
-        [Block("polished_blackstone"), Block("stone_bricks")],
-    ]
-    roofPalette: ClassVar[Sequence[Sequence[Block]]] = [
-        [
-            Block("deepslate_brick_stairs"),
-            Block("deepslate_brick_slab"),
-            Block("deepslate_bricks"),
-        ],
-        [
-            Block("polished_deepslate_stairs"),
-            Block("polished_deepslate_slab"),
-            Block("polished_deepslate"),
-        ],
-    ]
 
     def __post_init__(self) -> None:
 
-        self.wall = self.transformed(*choice(self.wallPalette))
-        self.pillar = self.transformed(*choice(self.pillarPalette))
-        self.foundation = self.transformed(*choice(self.foundationPalette))
-        self.roofStair, self.roofSlab, self.roofBlock = choice(self.roofPalette)
+        biome_string = self.editor.getBiome((self.x, self.y, self.z))
+        palette = get_palette_for_biome(biome_string)
+
+        self.foundation = self.transformed(*palette["pirate_foundation"])
+        self.pillar = self.transformed(*palette["pirate_pillar"])
+        self.wall = self.transformed(*palette["pirate_wall"])
+
+        self.roofStair = self.transformed(*palette["pirate_roof_stairs"])[0]
+        self.roofSlab = self.transformed(*palette["pirate_roof_slab"])[0]
+        self.roofBlock = self.transformed(*palette["pirate_roof_block"])[0]
 
         self.floors = max(1, min(4, self.floors))
 
@@ -64,6 +49,8 @@ class PirateHouse(House["Pirate"]):
             pass
 
     def build(self) -> "PirateHouse":
+        super().build()
+
         try:
             try:
                 hm = self.editor.worldSlice.heightmaps["MOTION_BLOCKING_NO_LEAVES"]
@@ -86,33 +73,34 @@ class PirateHouse(House["Pirate"]):
                         pass
 
             self.y = max_y
+
+            with self.editor.pushTransform(
+                Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
+            ):
+                self.build_foundation()
+                self.clear_interior()
+                self.clear_cliff_entrance()
+
+                for floor_index in range(self.floors):
+                    floor_y_offset = (
+                        self.foundation_height + floor_index * self.floor_height
+                    )
+                    self.build_walls(floor_y_offset=floor_y_offset)
+
+                    if floor_index < self.floors - 1:
+                        junction_y = floor_y_offset + self.floor_height
+                        self.build_intermediate_floor(junction_y)
+                        self.build_floor_cornice(junction_y)
+
+                top_y = self.foundation_height + self.floors * self.floor_height
+                self.build_japanese_roof(base_y=top_y)
+                self.build_stairs()
+                self.build_door()
+                self.build_windows()
+                self.build_decorations()
+            return self
         except Exception:
             pass
-        with self.editor.pushTransform(
-            Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
-        ):
-            self.build_foundation()
-            self.clear_interior()
-            self.clear_cliff_entrance()
-
-            for floor_index in range(self.floors):
-                floor_y_offset = (
-                    self.foundation_height + floor_index * self.floor_height
-                )
-                self.build_walls(floor_y_offset=floor_y_offset)
-
-                if floor_index < self.floors - 1:
-                    junction_y = floor_y_offset + self.floor_height
-                    self.build_intermediate_floor(junction_y)
-                    self.build_floor_cornice(junction_y)
-
-            top_y = self.foundation_height + self.floors * self.floor_height
-            self.build_japanese_roof(base_y=top_y)
-            self.build_stairs()
-            self.build_door()
-            self.build_windows()
-            self.build_decorations()
-        return self
 
     def build_foundation(self) -> None:
         try:
@@ -138,7 +126,8 @@ class PirateHouse(House["Pirate"]):
                 ground_y = hm[global_pos.x, global_pos.z]
                 local_y = ground_y - self.y
 
-                return max(-30, min(-1, local_y - 1))
+                # return max(-30, min(-1, local_y - 1))
+                return min(-1, local_y - 1)
             except IndexError:
                 return -1
 
@@ -292,7 +281,6 @@ class PirateHouse(House["Pirate"]):
                     self.safe_place(stair_x, junction_y, sz, Block("air"))
 
     def build_door(self) -> None:
-
         door_x, door_y, door_z = self.halfWidth, self.foundation_height + 1, 0
 
         self.safe_place(
@@ -317,32 +305,6 @@ class PirateHouse(House["Pirate"]):
         self.safe_place(
             door_x + 1, door_y, door_z, Block("lantern", {"hanging": "false"})
         )
-
-        house_tf = Transform(
-            translation=(self.x, self.y, self.z), rotation=self.rotation
-        )
-
-        try:
-            hm, has_hm = self.editor.worldSlice.heightmaps["WORLD_SURFACE"], True
-
-        except Exception:
-            has_hm = False
-
-        for step in range(20):
-            local_y, local_z = door_y - 1 - step, -1 - step
-            world_pos = house_tf.apply((door_x, local_y, local_z))
-            if has_hm and world_pos.y < hm[world_pos.x, world_pos.z]:
-                break
-
-            self.safe_place(
-                door_x,
-                local_y,
-                local_z,
-                Block("polished_deepslate_stairs", {"facing": "south"}),
-            )
-
-            for clear_h in range(1, 4):
-                self.safe_place(door_x, local_y + clear_h, local_z, Block("air"))
 
     def build_windows(self) -> None:
 
@@ -387,7 +349,6 @@ class PirateHouse(House["Pirate"]):
         )
 
     def get_footprint(self) -> tuple[int, int, int, int]:
-
         bx, ex, bz, ez = super().get_footprint()
         padding = 3
         return bx - padding, ex + padding, bz - padding, ez + padding
@@ -406,7 +367,7 @@ class PirateHouse(House["Pirate"]):
         total_interior_height = self.floors * self.floor_height + 14
 
         for y in range(
-            self.foundation_height, self.foundation_height + total_interior_height
+            self.foundation_height + 1, self.foundation_height + total_interior_height
         ):
             for x in range(1, self.width - 1):
                 for z in range(1, self.depth - 1):
@@ -432,3 +393,10 @@ class PirateHouse(House["Pirate"]):
             for clear_x in [door_x - 1, door_x, door_x + 1]:
                 for clear_y in range(door_y, roof_peak_y + 1):
                     self.safe_place(clear_x, clear_y, clear_z, Block("air"))
+
+    def get_door_pos(self) -> tuple[int, int]:
+        """Returns the global absolute coordinates just outside the door."""
+        tf = Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
+        # We step 1 block in front of the door (z = -1)
+        pos = tf.apply((self.halfWidth, 0, -1))
+        return pos[0], pos[2]

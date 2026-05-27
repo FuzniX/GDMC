@@ -15,7 +15,7 @@ def main():
         simulation=Simulation.generate(
             nb_villagers=20,
             nb_merchants=10,
-            nb_pirates=10,
+            nb_pirates=25,
         ),
     )
 

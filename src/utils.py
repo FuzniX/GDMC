@@ -14,6 +14,30 @@ BIOME_PALETTES: dict[str, dict[str, list[Block]]] = {
         "roof_stairs": [Block("sandstone_stairs"), Block("sandstone_stairs")],
         "roof_block": [Block("cut_sandstone"), Block("cut_sandstone")],
         "street": [Block("smooth_sandstone")],
+        # Pirate House
+        "pirate_foundation": [Block("blackstone"), Block("cobbled_deepslate")],
+        "pirate_pillar": [Block("dark_oak_log"), Block("stripped_dark_oak_log")],
+        "pirate_wall": [Block("red_sandstone"), Block("dark_oak_planks")],
+        "pirate_roof_stairs": [
+            Block("deepslate_brick_stairs"),
+            Block("deepslate_brick_stairs"),
+        ],
+        "pirate_roof_slab": [
+            Block("deepslate_brick_slab"),
+            Block("deepslate_brick_slab"),
+        ],
+        "pirate_roof_block": [Block("deepslate_bricks"), Block("deepslate_bricks")],
+        # Pirate Manor
+        "manor_foundation": [Block("coal_block"), Block("polished_blackstone")],
+        "manor_pillar": [Block("gold_block"), Block("cut_red_sandstone")],
+        "manor_wall": [Block("smooth_red_sandstone"), Block("terracotta")],
+        "manor_roof_stairs": [
+            Block("deepslate_tile_stairs"),
+            Block("deepslate_tile_stairs"),
+        ],
+        "manor_roof_slab": [Block("deepslate_tile_slab"), Block("deepslate_tile_slab")],
+        "manor_roof_block": [Block("deepslate_tiles"), Block("deepslate_tiles")],
+        "manor_floor": [Block("dark_oak_planks"), Block("jungle_planks")],
     },
     "badlands": {
         "foundation": [Block("red_sandstone"), Block("chiseled_red_sandstone")],
@@ -22,6 +46,30 @@ BIOME_PALETTES: dict[str, dict[str, list[Block]]] = {
         "roof_stairs": [Block("red_sandstone_stairs"), Block("red_sandstone_stairs")],
         "roof_block": [Block("smooth_red_sandstone"), Block("smooth_red_sandstone")],
         "street": [Block("smooth_red_sandstone")],
+        # Pirate House
+        "pirate_foundation": [Block("blackstone"), Block("cobbled_deepslate")],
+        "pirate_pillar": [Block("dark_oak_log"), Block("stripped_dark_oak_log")],
+        "pirate_wall": [Block("terracotta"), Block("red_sandstone")],
+        "pirate_roof_stairs": [
+            Block("deepslate_brick_stairs"),
+            Block("deepslate_brick_stairs"),
+        ],
+        "pirate_roof_slab": [
+            Block("deepslate_brick_slab"),
+            Block("deepslate_brick_slab"),
+        ],
+        "pirate_roof_block": [Block("deepslate_bricks"), Block("deepslate_bricks")],
+        # Pirate Manor
+        "manor_foundation": [Block("coal_block"), Block("polished_blackstone")],
+        "manor_pillar": [Block("gold_block"), Block("red_terracotta")],
+        "manor_wall": [Block("red_terracotta"), Block("yellow_terracotta")],
+        "manor_roof_stairs": [
+            Block("deepslate_tile_stairs"),
+            Block("deepslate_tile_stairs"),
+        ],
+        "manor_roof_slab": [Block("deepslate_tile_slab"), Block("deepslate_tile_slab")],
+        "manor_roof_block": [Block("deepslate_tiles"), Block("deepslate_tiles")],
+        "manor_floor": [Block("dark_oak_planks"), Block("jungle_planks")],
     },
     "birch": {
         "foundation": [Block("stone_bricks"), Block("cracked_stone_bricks")],
@@ -30,6 +78,30 @@ BIOME_PALETTES: dict[str, dict[str, list[Block]]] = {
         "roof_stairs": [Block("birch_stairs"), Block("birch_stairs")],
         "roof_block": [Block("birch_planks"), Block("birch_planks")],
         "street": [Block("dirt_path")],
+        # Pirate House
+        "pirate_foundation": [Block("cobbled_deepslate"), Block("polished_deepslate")],
+        "pirate_pillar": [Block("dark_oak_log"), Block("dark_oak_log")],
+        "pirate_wall": [Block("stripped_spruce_log"), Block("dark_oak_planks")],
+        "pirate_roof_stairs": [
+            Block("polished_deepslate_stairs"),
+            Block("polished_deepslate_stairs"),
+        ],
+        "pirate_roof_slab": [
+            Block("polished_deepslate_slab"),
+            Block("polished_deepslate_slab"),
+        ],
+        "pirate_roof_block": [Block("polished_deepslate"), Block("polished_deepslate")],
+        # Pirate Manor
+        "manor_foundation": [Block("coal_block"), Block("polished_blackstone")],
+        "manor_pillar": [Block("gold_block"), Block("chiseled_stone_bricks")],
+        "manor_wall": [Block("calcite"), Block("polished_diorite")],
+        "manor_roof_stairs": [
+            Block("deepslate_tile_stairs"),
+            Block("deepslate_tile_stairs"),
+        ],
+        "manor_roof_slab": [Block("deepslate_tile_slab"), Block("deepslate_tile_slab")],
+        "manor_roof_block": [Block("deepslate_tiles"), Block("deepslate_tiles")],
+        "manor_floor": [Block("spruce_planks"), Block("spruce_planks")],
     },
     "dark_forest": {
         "foundation": [Block("cobblestone"), Block("mossy_cobblestone")],
@@ -38,6 +110,30 @@ BIOME_PALETTES: dict[str, dict[str, list[Block]]] = {
         "roof_stairs": [Block("dark_oak_stairs"), Block("dark_oak_stairs")],
         "roof_block": [Block("dark_oak_planks"), Block("dark_oak_planks")],
         "street": [Block("dirt_path")],
+        # Pirate House
+        "pirate_foundation": [Block("obsidian"), Block("blackstone")],
+        "pirate_pillar": [Block("dark_oak_log"), Block("dark_oak_log")],
+        "pirate_wall": [Block("dark_oak_planks"), Block("polished_blackstone_bricks")],
+        "pirate_roof_stairs": [
+            Block("deepslate_brick_stairs"),
+            Block("deepslate_brick_stairs"),
+        ],
+        "pirate_roof_slab": [
+            Block("deepslate_brick_slab"),
+            Block("deepslate_brick_slab"),
+        ],
+        "pirate_roof_block": [Block("deepslate_bricks"), Block("deepslate_bricks")],
+        # Pirate Manor
+        "manor_foundation": [Block("coal_block"), Block("obsidian")],
+        "manor_pillar": [Block("gold_block"), Block("gilded_blackstone")],
+        "manor_wall": [Block("obsidian"), Block("cracked_polished_blackstone_bricks")],
+        "manor_roof_stairs": [
+            Block("deepslate_tile_stairs"),
+            Block("deepslate_tile_stairs"),
+        ],
+        "manor_roof_slab": [Block("deepslate_tile_slab"), Block("deepslate_tile_slab")],
+        "manor_roof_block": [Block("deepslate_tiles"), Block("deepslate_tiles")],
+        "manor_floor": [Block("spruce_planks"), Block("spruce_planks")],
     },
     "spruce": {
         "foundation": [Block("cobblestone"), Block("mossy_cobblestone")],
@@ -46,6 +142,30 @@ BIOME_PALETTES: dict[str, dict[str, list[Block]]] = {
         "roof_stairs": [Block("spruce_stairs"), Block("spruce_stairs")],
         "roof_block": [Block("spruce_planks"), Block("spruce_planks")],
         "street": [Block("dirt_path")],
+        # Pirate House
+        "pirate_foundation": [Block("cobbled_deepslate"), Block("cobbled_deepslate")],
+        "pirate_pillar": [Block("dark_oak_log"), Block("dark_oak_log")],
+        "pirate_wall": [Block("spruce_planks"), Block("tuff")],
+        "pirate_roof_stairs": [
+            Block("polished_deepslate_stairs"),
+            Block("polished_deepslate_stairs"),
+        ],
+        "pirate_roof_slab": [
+            Block("polished_deepslate_slab"),
+            Block("polished_deepslate_slab"),
+        ],
+        "pirate_roof_block": [Block("polished_deepslate"), Block("polished_deepslate")],
+        # Pirate Manor
+        "manor_foundation": [Block("coal_block"), Block("polished_blackstone")],
+        "manor_pillar": [Block("gold_block"), Block("tuff_bricks")],
+        "manor_wall": [Block("tuff_bricks"), Block("calcite")],
+        "manor_roof_stairs": [
+            Block("deepslate_tile_stairs"),
+            Block("deepslate_tile_stairs"),
+        ],
+        "manor_roof_slab": [Block("deepslate_tile_slab"), Block("deepslate_tile_slab")],
+        "manor_roof_block": [Block("deepslate_tiles"), Block("deepslate_tiles")],
+        "manor_floor": [Block("dark_oak_planks"), Block("dark_oak_planks")],
     },
     "snowy": {
         "foundation": [Block("stone_bricks"), Block("cobblestone")],
@@ -54,6 +174,30 @@ BIOME_PALETTES: dict[str, dict[str, list[Block]]] = {
         "roof_stairs": [Block("spruce_stairs"), Block("spruce_stairs")],
         "roof_block": [Block("spruce_planks"), Block("spruce_planks")],
         "street": [Block("stone_bricks")],
+        # Pirate House
+        "pirate_foundation": [Block("basalt"), Block("polished_basalt")],
+        "pirate_pillar": [Block("dark_oak_log"), Block("dark_oak_log")],
+        "pirate_wall": [Block("spruce_planks"), Block("snow_block")],
+        "pirate_roof_stairs": [
+            Block("deepslate_brick_stairs"),
+            Block("deepslate_brick_stairs"),
+        ],
+        "pirate_roof_slab": [
+            Block("deepslate_brick_slab"),
+            Block("deepslate_brick_slab"),
+        ],
+        "pirate_roof_block": [Block("deepslate_bricks"), Block("deepslate_bricks")],
+        # Pirate Manor
+        "manor_foundation": [Block("coal_block"), Block("polished_blackstone")],
+        "manor_pillar": [Block("gold_block"), Block("packed_ice")],
+        "manor_wall": [Block("packed_ice"), Block("calcite")],
+        "manor_roof_stairs": [
+            Block("deepslate_tile_stairs"),
+            Block("deepslate_tile_stairs"),
+        ],
+        "manor_roof_slab": [Block("deepslate_tile_slab"), Block("deepslate_tile_slab")],
+        "manor_roof_block": [Block("deepslate_tiles"), Block("deepslate_tiles")],
+        "manor_floor": [Block("spruce_planks"), Block("spruce_planks")],
     },
     "swamp": {
         "foundation": [Block("mossy_cobblestone"), Block("mud_bricks")],
@@ -62,6 +206,30 @@ BIOME_PALETTES: dict[str, dict[str, list[Block]]] = {
         "roof_stairs": [Block("mangrove_stairs"), Block("mangrove_stairs")],
         "roof_block": [Block("mangrove_planks"), Block("mangrove_planks")],
         "street": [Block("dirt_path")],
+        # Pirate House
+        "pirate_foundation": [Block("mud_bricks"), Block("blackstone")],
+        "pirate_pillar": [Block("mangrove_log"), Block("mangrove_log")],
+        "pirate_wall": [Block("mangrove_planks"), Block("dark_oak_planks")],
+        "pirate_roof_stairs": [
+            Block("polished_deepslate_stairs"),
+            Block("polished_deepslate_stairs"),
+        ],
+        "pirate_roof_slab": [
+            Block("polished_deepslate_slab"),
+            Block("polished_deepslate_slab"),
+        ],
+        "pirate_roof_block": [Block("polished_deepslate"), Block("polished_deepslate")],
+        # Pirate Manor
+        "manor_foundation": [Block("coal_block"), Block("polished_blackstone")],
+        "manor_pillar": [Block("gold_block"), Block("emerald_block")],
+        "manor_wall": [Block("mud_bricks"), Block("green_terracotta")],
+        "manor_roof_stairs": [
+            Block("deepslate_tile_stairs"),
+            Block("deepslate_tile_stairs"),
+        ],
+        "manor_roof_slab": [Block("deepslate_tile_slab"), Block("deepslate_tile_slab")],
+        "manor_roof_block": [Block("deepslate_tiles"), Block("deepslate_tiles")],
+        "manor_floor": [Block("mangrove_planks"), Block("mangrove_planks")],
     },
     "ocean": {
         "foundation": [Block("prismarine_bricks"), Block("dark_prismarine")],
@@ -70,6 +238,30 @@ BIOME_PALETTES: dict[str, dict[str, list[Block]]] = {
         "roof_stairs": [Block("prismarine_stairs"), Block("prismarine_stairs")],
         "roof_block": [Block("prismarine_slab"), Block("prismarine_slab")],
         "street": [Block("stripped_oak_wood", {"axis": "y"})],
+        # Pirate House
+        "pirate_foundation": [Block("dark_prismarine"), Block("blackstone")],
+        "pirate_pillar": [Block("dark_oak_log"), Block("dark_oak_log")],
+        "pirate_wall": [Block("prismarine_bricks"), Block("dark_oak_planks")],
+        "pirate_roof_stairs": [
+            Block("deepslate_brick_stairs"),
+            Block("deepslate_brick_stairs"),
+        ],
+        "pirate_roof_slab": [
+            Block("deepslate_brick_slab"),
+            Block("deepslate_brick_slab"),
+        ],
+        "pirate_roof_block": [Block("deepslate_bricks"), Block("deepslate_bricks")],
+        # Pirate Manor
+        "manor_foundation": [Block("coal_block"), Block("dark_prismarine")],
+        "manor_pillar": [Block("gold_block"), Block("prismarine")],
+        "manor_wall": [Block("cyan_terracotta"), Block("prismarine_bricks")],
+        "manor_roof_stairs": [
+            Block("deepslate_tile_stairs"),
+            Block("deepslate_tile_stairs"),
+        ],
+        "manor_roof_slab": [Block("deepslate_tile_slab"), Block("deepslate_tile_slab")],
+        "manor_roof_block": [Block("deepslate_tiles"), Block("deepslate_tiles")],
+        "manor_floor": [Block("dark_oak_planks"), Block("dark_oak_planks")],
     },
     "default": {
         "foundation": [Block("stone_bricks"), Block("cracked_stone_bricks")],
@@ -78,6 +270,30 @@ BIOME_PALETTES: dict[str, dict[str, list[Block]]] = {
         "roof_stairs": [Block("oak_stairs"), Block("oak_stairs")],
         "roof_block": [Block("oak_planks"), Block("oak_planks")],
         "street": [Block("dirt_path")],
+        # Pirate House
+        "pirate_foundation": [Block("blackstone"), Block("cobblestone")],
+        "pirate_pillar": [Block("dark_oak_log"), Block("dark_oak_log")],
+        "pirate_wall": [Block("polished_blackstone_bricks"), Block("dark_oak_planks")],
+        "pirate_roof_stairs": [
+            Block("deepslate_brick_stairs"),
+            Block("deepslate_brick_stairs"),
+        ],
+        "pirate_roof_slab": [
+            Block("deepslate_brick_slab"),
+            Block("deepslate_brick_slab"),
+        ],
+        "pirate_roof_block": [Block("deepslate_bricks"), Block("deepslate_bricks")],
+        # Pirate Manor
+        "manor_foundation": [Block("coal_block"), Block("polished_blackstone_bricks")],
+        "manor_pillar": [Block("gold_block"), Block("netherite_block")],
+        "manor_wall": [Block("polished_diorite"), Block("calcite")],
+        "manor_roof_stairs": [
+            Block("deepslate_tile_stairs"),
+            Block("deepslate_tile_stairs"),
+        ],
+        "manor_roof_slab": [Block("deepslate_tile_slab"), Block("deepslate_tile_slab")],
+        "manor_roof_block": [Block("deepslate_tiles"), Block("deepslate_tiles")],
+        "manor_floor": [Block("dark_oak_planks"), Block("spruce_planks")],
     },
 }
 

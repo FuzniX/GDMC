@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from random import choice
-from typing import ClassVar, Sequence
 
 from gdpc.block import Block
 from gdpc.geometry import placeCuboid, placeCuboidHollow
@@ -57,6 +56,21 @@ class BasicHouse(House):
 
         self.halfWidth = self.width // 2
 
+    def _get_bottom_y(self, lx: int, lz: int, house_tf: Transform) -> int:
+        """Calculate the local terrain depth under a specific local coordinate."""
+        assert self.editor.worldSlice is not None
+        hm = self.editor.worldSlice.heightmaps["MOTION_BLOCKING_NO_LEAVES"]
+
+        global_pos = house_tf.apply((lx, 0, lz))
+        sx, sz = hm.shape
+
+        # Bound check to protect matrix indexation
+        if 0 <= global_pos.x < sx and 0 <= global_pos.z < sz:
+            ground_y = hm[global_pos.x, global_pos.z]
+            return min(-1, ground_y - self.y - 1)
+
+        return -1
+
     def build(self) -> "BasicHouse":
         """
         Builds the house.
@@ -67,10 +81,25 @@ class BasicHouse(House):
         with self.editor.pushTransform(
             Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
         ):
+            self.build_foundation()
             self.build_shape()
             self.build_door()
             self.build_roof()
         return self
+
+    def build_foundation(self) -> None:
+        """Erect a solid block base beneath the house structure down to ground."""
+        house_tf = Transform(
+            translation=(self.x, self.y, self.z), rotation=self.rotation
+        )
+
+        # Fill the entire floor area down to the custom landscape depth
+        for x in range(self.width + 1):
+            for z in range(self.depth + 1):
+                bottom = self._get_bottom_y(x, z, house_tf)
+                # Draw foundation blocks mix up to the house floor level (0)
+                for y in range(bottom, 1):
+                    self.editor.placeBlock((x, y, z), choice(self.floor))
 
     def build_shape(self) -> None:
         """

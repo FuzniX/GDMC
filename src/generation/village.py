@@ -1,3 +1,5 @@
+import heapq
+import math
 import random
 from dataclasses import dataclass, field
 from random import choice, randint
@@ -7,6 +9,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from gdpc.block import Block
 
+from src.generation.houses.pirate_house import PirateHouse
+from src.generation.houses.pirate_manor import PirateManor
 from src.utils import CustomEditor, get_palette_for_biome
 
 from ..simulation.pirate import Pirate
@@ -31,6 +35,7 @@ STREET_ROTATIONS = {
     STREET_SOUTH: 2,
     STREET_WEST: 3,
 }
+PIRATE_PATH_BLOCK = 9
 
 # Organic Block Spiral
 # Forces paths to wrap around the center before splitting, leaving large open blocks for houses.
@@ -54,6 +59,8 @@ LSYSTEM_RULES_DIVIDER = {
         "FF",
     ]
 }
+
+MAX_ELEVATION = 50
 
 
 @dataclass
@@ -169,6 +176,20 @@ class Village:
         str_mask = self.houseMap[x_core, z_core] != PIRATE_BLOCK
         self.houseMap[x_core, z_core][str_mask] = STREET_BLOCK
 
+    def _paint_pirate_path_block(self, cx: int, cz: int) -> None:
+        """Apply a 3-block wide brush for organic pirate paths."""
+        sx, sz = self.houseMap.shape
+        # radius = 1 means 1 block around the center -> 3 blocks total width
+        r = 1
+
+        x_path = slice(max(0, cx - r), min(sx, cx + r + 1))
+        z_path = slice(max(0, cz - r), min(sz, cz + r + 1))
+
+        # Target only free or existing pirate blocks to avoid overwriting houses
+        zone = self.houseMap[x_path, z_path]
+        mask = (zone == FREE_BLOCK) | (zone == PIRATE_BLOCK)
+        zone[mask] = PIRATE_PATH_BLOCK
+
     def _trace_forward(
         self, state: list, move: tuple, step: int, limit: int, r: int, p: int
     ) -> list:
@@ -199,51 +220,71 @@ class Village:
         step_length: int = 24,
         width: int = 3,
         max_slope: int = 2,
+        min_required_streets: int = 400,  # Minimum street pixels required
     ) -> None:
-        """Generate a structured connected orthogonal street matrix network."""
+        """
+        Generate streets using a dynamic seeding fallback loop to ensure
+        the L-system generates enough paths on amplified terrains.
+        """
         sx, sz = self.houseMap.shape
-        commands = self._expand_lsystem(iterations)
-
-        # Execution parameters
-        prob = 0.75
         radius, padding = width // 2, (width // 2) + 1
         directions = {0: (0, -1), 90: (1, 0), 180: (0, 1), 270: (-1, 0)}
+        prob = 0.75
 
-        # Structural states tracking
-        state = [sx // 2, sz // 2, 0]  # cx, cz, angle_deg
-        stack = []
-        skip_depth = 0
+        # Try up to 5 times at different flat locations if streets fail
+        for attempt in range(5):
+            # Reset street blocks if this is a retry attempt
+            if attempt > 0:
+                mask = np.isin(self.houseMap, [STREET_BLOCK, PADDING_BLOCK])
+                self.houseMap[mask] = FREE_BLOCK
 
-        for cmd in commands:
-            # Handle skipped branch depth nesting
-            if skip_depth > 0:
-                if cmd == "[":
-                    skip_depth += 1
-                elif cmd == "]":
-                    skip_depth -= 1
-                continue
+            # Find the best seed. On retry, we artificially shift the search chunk
+            start_x, start_z = self._find_flattest_seed(chunk_size=32 + (attempt * 12))
 
-            if cmd == "F":
-                move_vec = directions[state[2]]
-                state = self._trace_forward(
-                    state, move_vec, step_length, max_slope, radius, padding
-                )
-            elif cmd == "+":
-                state[2] = (state[2] + 90) % 360
-            elif cmd == "-":
-                state[2] = (state[2] - 90) % 360
-            elif cmd == "[":
-                # Drop branch execution based on probability constraint
-                if random.random() > prob:
-                    skip_depth = 1
-                else:
-                    stack.append(tuple(state))
-            elif cmd == "]" and stack:
-                state = list(stack.pop())
+            commands = self._expand_lsystem(iterations)
+            state = [start_x, start_z, 0]  # cx, cz, angle_deg
+            stack = []
+            skip_depth = 0
 
-        self._clean_street_vegetation()
+            # Execute the L-system turtle commands
+            for cmd in commands:
+                if skip_depth > 0:
+                    if cmd == "[":
+                        skip_depth += 1
+                    elif cmd == "]":
+                        skip_depth -= 1
+                    continue
 
-        # Build building borders layout
+                if cmd == "F":
+                    move_vec = directions[state[2]]
+                    state = self._trace_forward(
+                        state, move_vec, step_length, max_slope, radius, padding
+                    )
+                elif cmd == "+":
+                    state[2] = (state[2] + 90) % 360
+                elif cmd == "-":
+                    state[2] = (state[2] - 90) % 360
+                elif cmd == "[":
+                    if random.random() > prob:
+                        skip_depth = 1
+                    else:
+                        stack.append(tuple(state))
+                elif cmd == "]" and stack:
+                    state = list(stack.pop())
+
+            # Count how many street blocks were successfully placed
+            street_count = np.sum(self.houseMap == STREET_BLOCK)
+
+            # If we generated enough streets, we can safely exit the retry loop
+            if street_count >= min_required_streets:
+                break
+        else:
+            print(
+                f"[Warning] Failed to reach {min_required_streets} streets "
+                f"after 5 attempts. Proceeding with {street_count} blocks."
+            )
+
+        self._clean_path_vegetation(STREET_BLOCK)
         self._place_street_positions()
 
     def _place_street_positions(self) -> None:
@@ -329,6 +370,11 @@ class Village:
                     y=ground_y - 1,
                     rotation=rot,
                 )
+
+                (min_x, max_x), (min_z, max_z) = self.get_house_footprint(manor)
+                height_zone = self.heightmaps[min_x:max_x, min_z:max_z]
+                manor.y = int(np.mean(height_zone))
+
                 if self.can_place_manor(manor):
                     return manor
 
@@ -376,6 +422,10 @@ class Village:
                     y=ground_y,
                     rotation=rot,
                 )
+
+                (min_x, max_x), (min_z, max_z) = self.get_house_footprint(house)
+                height_zone = self.heightmaps[min_x:max_x, min_z:max_z]
+                house.y = int(np.mean(height_zone))
 
                 if self.can_place_house(house, player):
                     return house
@@ -427,13 +477,16 @@ class Village:
                 # Overwrite with the filtered flat ground elevation
                 self.heightmaps[x, z] = self._get_true_ground_y(x, z, raw_y)
 
-    def _clean_street_vegetation(self, max_check_height: int = 15) -> None:
-        """Scan all drawn streets and trigger wood/leaves vaporization."""
-        street_coords = np.argwhere(self.houseMap == STREET_BLOCK)
+    def _clean_path_vegetation(
+        self, target_block: int, max_check_height: int = 15
+    ) -> None:
+        """Scan specified path tiles and trigger wood/leaves vaporization."""
+        # Find coordinates matching the requested path type (street or pirate)
+        path_coords = np.argwhere(self.houseMap == target_block)
 
-        for x, z in street_coords:
+        for x, z in path_coords:
             ground_y = self.heightmaps[x, z]
-            # Look for tree parts on or floating directly above the street
+            # Look upward from the path level to look for remaining limbs
             for y in range(ground_y + 1, ground_y + max_check_height):
                 block = self.editor.getBlock((x, y, z))
                 assert block.id is not None
@@ -444,18 +497,30 @@ class Village:
         return STREET_ROTATIONS[self.houseMap[x, z]]
 
     def build(self) -> None:
-        self.build_zones()
-        for house in self.houses:
+        self.build_pirate_zone()
+        self.build_street_paths()
+
+        houses_list = list(self.houses)
+        self._generate_pirate_paths(houses_list)
+        self.build_pirate_paths()
+
+        for house in houses_list:
             house.build()
 
-    def build_zones(self) -> None:
+    def build_pirate_zone(self) -> None:
         for x, z in np.argwhere(self.houseMap == PIRATE_BLOCK):
             self.editor.placeBlock((x, self.heightmaps[x, z], z), Block("coarse_dirt"))
 
+    def build_street_paths(self) -> None:
         for x, z in np.argwhere(self.houseMap == STREET_BLOCK):
             biome_string = self.editor.getBiome((x, int(self.heightmaps[x, z]), z))
             palette = get_palette_for_biome(biome_string)
             self.editor.placeBlock((x, self.heightmaps[x, z], z), palette["street"])
+
+    def build_pirate_paths(self) -> None:
+        for x, z in np.argwhere(self.houseMap == PIRATE_PATH_BLOCK):
+            block = choice([Block("dirt_path"), Block("podzol")])
+            self.editor.placeBlock((x, self.heightmaps[x, z], z), block)
 
     def get_house_footprint(
         self, house: House
@@ -467,14 +532,26 @@ class Village:
         )
 
     def can_place_manor(self, manor: House) -> bool:
-        """Validates that the manor only occupies pirate or free blocks."""
+        """Validates that the manor is within bounds and occupies only valid blocks."""
         (min_x, max_x), (min_z, max_z) = self.get_house_footprint(manor)
+        sx, sz = self.houseMap.shape
 
+        # Check strict boundaries against buildArea matrix size
+        if min_x < 0 or min_z < 0 or max_x > sx or max_z > sz:
+            return False
+
+        # Safety check for invalid footprint dimensions
         if min_x >= max_x or min_z >= max_z:
             return False
 
+        # Refuse placement if the terrain drops or rises by more than 10 blocks
+        height_zone = self.heightmaps[min_x:max_x, min_z:max_z]
+        if np.max(height_zone) - np.min(height_zone) > MAX_ELEVATION:
+            return False
+
+        # Validate that the zone is exclusively PIRATE_BLOCK or FREE_BLOCK
         zone = self.houseMap[min_x:max_x, min_z:max_z]
-        return np.all(np.isin(zone, [PIRATE_BLOCK, FREE_BLOCK]))
+        return bool(np.all(np.isin(zone, [PIRATE_BLOCK, FREE_BLOCK])))
 
     def can_place_house(self, house: House, player: Player) -> bool:
         """
@@ -488,10 +565,14 @@ class Village:
         if min_x >= max_x or min_z >= max_z:
             return False
 
+        height_zone = self.heightmaps[min_x:max_x, min_z:max_z]
+        if np.max(height_zone) - np.min(height_zone) > MAX_ELEVATION:
+            return False
+
         zone = self.houseMap[min_x:max_x, min_z:max_z]
 
         if isinstance(player, Pirate):
-            return np.all(np.isin(zone, [PIRATE_BLOCK, FREE_BLOCK]))
+            return bool(np.all(np.isin(zone, [PIRATE_BLOCK, FREE_BLOCK])))
 
         mask_street = np.isin(zone, STREET_DIRECTIONS)
         mask_free = zone == FREE_BLOCK
@@ -562,6 +643,192 @@ class Village:
         plt.title("Build Area")
         plt.xlabel("X")
         plt.ylabel("Z")
+
+    def _find_flattest_seed(self, chunk_size: int = 32) -> tuple[int, int]:
+        """
+        Scans the heightmap by chunks and returns the center coordinates
+        of the flattest region to start the L-system safely.
+        """
+        sx, sz = self.houseMap.shape
+        best_x, best_z = sx // 2, sz // 2  # Default fallback to center
+        min_delta = float("inf")
+
+        # Scan the map by stepping through chunks
+        for x in range(0, sx - chunk_size, chunk_size // 2):
+            for z in range(0, sz - chunk_size, chunk_size // 2):
+                height_chunk = self.heightmaps[x : x + chunk_size, z : z + chunk_size]
+
+                # Calculate the elevation delta in this specific sector
+                delta = int(np.max(height_chunk) - np.min(height_chunk))
+
+                # We want a flat zone, but we also avoid absolute map borders
+                if delta < min_delta and x > 16 and z > 16:
+                    min_delta = delta
+                    best_x = x + chunk_size // 2
+                    best_z = z + chunk_size // 2
+
+        return best_x, best_z
+
+    def _find_street_pirate_intersections(self) -> list[tuple[int, int]]:
+        """Detect points where 3-wide urban streets touch the pirate zone."""
+        sx, sz = self.houseMap.shape
+        contact_points = []
+
+        # Find all STREET_BLOCKs adjacent to a PIRATE_BLOCK
+        for x in range(1, sx - 1):
+            for z in range(1, sz - 1):
+                if self.houseMap[x, z] == STREET_BLOCK:
+                    # Check 8 surrounding neighbors for contact
+                    for dx, dz in [
+                        (-1, 0),
+                        (1, 0),
+                        (0, -1),
+                        (0, 1),
+                        (-1, -1),
+                        (-1, 1),
+                        (1, -1),
+                        (1, 1),
+                    ]:
+                        if self.houseMap[x + dx, z + dz] == PIRATE_BLOCK:
+                            contact_points.append((x, z))
+                            break  # Stop checking neighbors for this block
+
+        # only keep clusters of at least 2 points (3-wide streets)
+        intersections = []
+        visited = set()
+
+        for px, pz in contact_points:
+            if (px, pz) in visited:
+                continue
+
+            # Group adjacent contact points within a small radius
+            cluster = []
+            for cx, cz in contact_points:
+                if abs(cx - px) <= 2 and abs(cz - pz) <= 2:
+                    cluster.append((cx, cz))
+
+            # A real street is 3 blocks wide, so we expect >= 2 contact points
+            if len(cluster) >= 2:
+                # Find the center pixel of the street end
+                avg_x = sum(c[0] for c in cluster) // len(cluster)
+                avg_z = sum(c[1] for c in cluster) // len(cluster)
+                intersections.append((avg_x, avg_z))
+
+                # Mark entire cluster as processed to avoid duplicates
+                for c in cluster:
+                    visited.add(c)
+
+        return intersections
+
+    def _generate_pirate_paths(self, houses_list: list[House]) -> None:
+        """Connects pirate houses and urban street ends using an organic network."""
+        pirate_houses = [h for h in houses_list if isinstance(h.player, Pirate)]
+        sx, sz = self.houseMap.shape
+
+        # Collect all targets to connect (House doors)
+        targets = []
+        for h in pirate_houses:
+            if isinstance(h, (PirateHouse, PirateManor)):
+                dx, dz = h.get_door_pos()
+                if 0 <= dx < sx and 0 <= dz < sz:
+                    targets.append((dx, dz))
+
+        # Add the clean street intersections to the network targets
+        targets.extend(self._find_street_pirate_intersections())
+
+        # If we have nothing to connect, exit
+        if not targets:
+            return
+
+        # Build the Minimum Spanning Tree using A*
+        connected = {targets[0]}
+
+        for tgt in targets[1:]:
+            path = self._find_path_astar(tgt, connected)
+            for px, pz in path:
+                connected.add((px, pz))
+                # Paint the 3-wide path only if outside urban streets
+                if self.houseMap[px, pz] not in (STREET_BLOCK, PADDING_BLOCK):
+                    self._paint_pirate_path_block(px, pz)
+
+        self._clean_path_vegetation(PIRATE_PATH_BLOCK)
+
+    def _find_path_astar(
+        self, start: tuple[int, int], targets: set[tuple[int, int]]
+    ) -> list[tuple[int, int]]:
+        """A* pathfinding to connect to the nearest existing path."""
+        if start in targets:
+            return []
+
+        def dist(t):
+            return (t[0] - start[0]) ** 2 + (t[1] - start[1]) ** 2
+
+        nearest_tgt = min(targets, key=dist)
+
+        queue = [(0, 0, start)]
+        came_from = {}
+        g_score = {start: 0}
+        sx, sz = self.houseMap.shape
+
+        while queue:
+            _, current_g, current = heapq.heappop(queue)
+
+            if current in targets:
+                path = []
+                while current in came_from:
+                    path.append(current)
+                    current = came_from[current]
+                return path
+
+            if current_g > g_score.get(current, float("inf")):
+                continue
+
+            cx, cz = current
+            moves = [
+                (-1, 0),
+                (1, 0),
+                (0, -1),
+                (0, 1),
+                (-1, -1),
+                (-1, 1),
+                (1, -1),
+                (1, 1),
+            ]
+
+            for dx, dz in moves:
+                nx, nz = cx + dx, cz + dz
+
+                if 0 <= nx < sx and 0 <= nz < sz:
+                    b_type = self.houseMap[nx, nz]
+
+                    if b_type in (STREET_BLOCK, PADDING_BLOCK):
+                        continue
+
+                    cur_h = self.heightmaps[cx, cz]
+                    nxt_h = self.heightmaps[nx, nz]
+                    if abs(int(nxt_h) - int(cur_h)) > 2:
+                        continue
+
+                    cost = 1.414 if dx != 0 and dz != 0 else 1.0
+
+                    if b_type == FREE_BLOCK:
+                        cost += 3.0
+                    elif b_type == PIRATE_PATH_BLOCK:
+                        cost = 0.1
+                    elif b_type == HOUSE_BLOCK:
+                        cost += 20.0
+
+                    tentative_g = current_g + cost
+
+                    if tentative_g < g_score.get((nx, nz), float("inf")):
+                        came_from[(nx, nz)] = current
+                        g_score[(nx, nz)] = tentative_g
+                        h = math.sqrt(
+                            (nx - nearest_tgt[0]) ** 2 + (nz - nearest_tgt[1]) ** 2
+                        )
+                        heapq.heappush(queue, (tentative_g + h, tentative_g, (nx, nz)))
+
+        return []
 
 
 class HouseOverlapError(Exception):
