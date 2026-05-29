@@ -373,7 +373,8 @@ class Village:
 
                 (min_x, max_x), (min_z, max_z) = self.get_house_footprint(manor)
                 height_zone = self.heightmaps[min_x:max_x, min_z:max_z]
-                manor.y = int(np.mean(height_zone))
+
+                manor.y = int(np.nan_to_num(np.mean(height_zone), nan=ground_y))
 
                 if self.can_place_manor(manor):
                     return manor
@@ -425,7 +426,8 @@ class Village:
 
                 (min_x, max_x), (min_z, max_z) = self.get_house_footprint(house)
                 height_zone = self.heightmaps[min_x:max_x, min_z:max_z]
-                house.y = int(np.mean(height_zone))
+
+                house.y = int(np.nan_to_num(np.mean(height_zone), nan=ground_y))
 
                 if self.can_place_house(house, player):
                     return house
