@@ -18,26 +18,6 @@ class BasicHouse(House):
     Dataclass representing a basic house that is built in Minecraft
     """
 
-    # floorPalette: ClassVar[Sequence[Sequence[Block]]] = [
-    #     [Block("stone_bricks"), Block("cracked_stone_bricks")],
-    #     [Block("cobblestone"), Block("mossy_cobblestone")],
-    # ]
-    # wallPalette: ClassVar[Sequence[Sequence[Block]]] = [
-    #     [Block("oak_planks"), Block("birch_planks")],
-    #     [Block("spruce_planks"), Block("dark_oak_planks")],
-    #     [Block("white_terracotta"), Block("green_terracotta")],
-    # ]
-    # roofPalette: ClassVar[Sequence[Sequence[Sequence[Block]]]] = [
-    #     [
-    #         [Block("oak_stairs"), Block("birch_stairs")],
-    #         [Block("oak_planks"), Block("birch_planks")],
-    #     ],
-    #     [
-    #         [Block("spruce_stairs"), Block("dark_oak_stairs")],
-    #         [Block("spruce_planks"), Block("dark_oak_planks")],
-    #     ],
-    # ]
-
     def __post_init__(self) -> None:
         """
         Variables to define after initialization/instanciation

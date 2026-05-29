@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from random import choice
-from typing import ClassVar, Sequence
 
 from gdpc.block import Block
 from gdpc.transform import Transform
