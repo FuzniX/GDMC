@@ -568,7 +568,7 @@ class Village:
             self.editor.placeBlock((x, ground_y + 1, z), Block("skeleton_skull", {"rotation": skull_rotation}))
             
             placed_positions.append((x, z))
-
+            
     def get_house_footprint(
         self, house: House
     ) -> tuple[tuple[int, int], tuple[int, int]]:

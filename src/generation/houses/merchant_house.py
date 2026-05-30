@@ -1,9 +1,10 @@
+import random as rnd
 from dataclasses import dataclass
 from random import choice
-from typing import ClassVar, Sequence
 
 from gdpc.block import Block
-from gdpc.geometry import placeCuboid, placeCuboidHollow
+from gdpc.editor_tools import placeSign
+from gdpc.geometry import placeCuboid
 from gdpc.transform import Transform
 from matplotlib import patches
 from matplotlib.axes import Axes
@@ -18,89 +19,62 @@ from .house import House
 class MerchantHouse(House[Merchant]):
     """
     Represents a specialized merchant estate featuring an intersecting gable roof,
-    structural timber framing, a stone baseline, and exterior market stalls.
+    structural timber framing, a right wing for shops, a rooftop bonsai,
+    and dynamic chest filling for the merchant's store.
     """
 
-    # foundationPalette: ClassVar[Sequence[Sequence[Block]]] = [
-    #     [Block("stone_bricks"), Block("cracked_stone_bricks")],
-    #     [Block("cobblestone"), Block("mossy_cobblestone")],
-    # ]
-    # pillarPalette: ClassVar[Sequence[Sequence[Block]]] = [
-    #     [Block("stripped_oak_log"), Block("stripped_birch_log")],
-    #     [Block("stripped_spruce_log"), Block("stripped_dark_oak_log")],
-    # ]
-    # wallPalette: ClassVar[Sequence[Sequence[Block]]] = [
-    #     [Block("white_terracotta"), Block("bone_block")],
-    #     [Block("smooth_sandstone"), Block("sandstone")],
-    # ]
-    # roofPalette: ClassVar[Sequence[Sequence[Sequence[Block]]]] = [
-    #     [
-    #         [Block("oak_stairs"), Block("birch_stairs")],
-    #         [Block("oak_planks"), Block("birch_planks")],
-    #     ],
-    #     [
-    #         [Block("spruce_stairs"), Block("spruce_stairs")],
-    #         [Block("spruce_planks"), Block("spruce_planks")],
-    #     ],
-    # ]
-    roofTrimPalette: ClassVar[Sequence[Sequence[Sequence[Block]]]] = [
-        [
-            [Block("stone_brick_stairs"), Block("cobblestone_stairs")],
-            [Block("stone_bricks"), Block("cobblestone")],
-        ]
-    ]
-    shopStructurePalette: ClassVar[Sequence[Block]] = [
-        Block("oak_fence"),
-        Block("spruce_slab"),
-        Block("oak_trapdoor"),
-    ]
-    shopRoofPalette: ClassVar[Sequence[Block]] = [
-        Block("green_wool"),
-        Block("green_carpet"),
-    ]
-
     def __post_init__(self) -> None:
-        """Initialize and resolve random material selections and core building dimensions."""
-        biome_string = self.editor.getBiome((self.x, self.y, self.z))
-        palette = get_palette_for_biome(biome_string)
-
-        self.foundation = self.transformed(*palette["foundation"])
-        self.pillar = self.transformed(*palette["pillar"])
-        self.wall = self.transformed(*palette["wall"])
-
-        # Select primary wooden roof components
-        (roofStairs, roofDamagedStairs) = palette["roof_stairs"]
-        (roofBlock, roofDamagedBlock) = palette["roof_block"]
-        self.roofStairsBase = (roofStairs, roofDamagedStairs)
-
-        # Map corresponding straight wooden slabs
-        self.roofSlabBase = (
-            Block(roofStairs.id.replace("stairs", "slab")),
-            Block(roofDamagedStairs.id.replace("stairs", "slab")),
-        )
-
-        # Select stone border outline components
-        (trimStairs, trimStairsDamaged), (trimBlock, trimBlockDamaged) = choice(
-            self.roofTrimPalette
-        )
-        assert trimStairs.id is not None
-        assert trimStairsDamaged.id is not None
-        self.roofTrim = (trimStairs, trimStairsDamaged)
-        self.roofTrimBlock = (trimBlock, trimBlockDamaged)
-        self.roofTrimSlab = (
-            Block(trimStairs.id.replace("stairs", "slab")),
-            Block(trimStairsDamaged.id.replace("stairs", "slab")),
-        )
-
-        # Enforce odd dimensions for clean geometric alignment
-        if self.width % 2 == 0:
-            self.width += 1
-        if self.depth % 2 == 0:
-            self.depth += 1
+        """Initialize dimensions and dynamically map the biome palettes."""
+        self.width = 27
+        self.depth = 17
         self.halfWidth = self.width // 2
         self.halfDepth = self.depth // 2
 
-        self.foundation_height = 2
+        biome_string = self.editor.getBiome((self.x, self.y, self.z))
+        palette = get_palette_for_biome(biome_string)
+
+        self.base_stone = self.transformed(*palette["vil_base_stone_alt"])
+        self.base_stone_alt = self.transformed(*palette["vil_base_stone"])
+        self.porch_slab = self.transformed(*palette["vil_roof_fill_slab"])
+
+        self.pillar_wood = self.transformed(*palette["vil_wall_wood"])
+        self.beam_wood = self.transformed(*palette["vil_wall_wood"])
+        self.wall_wood = self.transformed(*palette["vil_pillar_wood"])
+
+        self.shoji_block = self.transformed(*palette["vil_shoji_block"])
+        self.shoji_trapdoor = self.transformed(*palette["vil_shoji_trapdoor"])
+
+        self.roof_outline_stair = self.transformed(*palette["vil_roof_fill_stair"])
+        self.roof_outline_slab = self.transformed(*palette["vil_roof_fill_slab"])
+        self.roof_outline_block = self.transformed(*palette["vil_roof_block"])
+
+        self.roof_fill_stair = self.transformed(*palette["vil_roof_outline_stair"])
+        self.roof_fill_slab = self.transformed(*palette["vil_roof_outline_slab"])
+        self.roof_block = self.transformed(*palette["vil_roof_outline_block"])
+
+        id_norm = palette["vil_roof_fill_slab"][0].id.replace("slab", "fence")
+        id_dmg = palette["vil_roof_fill_slab"][1].id.replace("slab", "fence")
+        if "fence" not in id_norm:
+            id_norm = "dark_oak_fence"
+        if "fence" not in id_dmg:
+            id_dmg = "dark_oak_fence"
+        self.porch_fence = self.transformed(Block(id_norm), Block(id_dmg))
+
+        self.bonsai_log = self.transformed(Block("cherry_log"), Block("dead_tube"))
+        self.bonsai_leaves = self.transformed(Block("cherry_leaves"), Block("air"))
+
+    def _get_bottom_y(self, lx: int, lz: int, house_tf: Transform) -> int:
+        """Calculate the local terrain depth under a specific coordinate."""
+        assert self.editor.worldSlice is not None
+        hm = self.editor.worldSlice.heightmaps["MOTION_BLOCKING_NO_LEAVES"]
+
+        global_pos = house_tf.apply((lx, 0, lz))
+        sx, sz = hm.shape
+
+        if 0 <= global_pos.x < sx and 0 <= global_pos.z < sz:
+            ground_y = hm[global_pos.x, global_pos.z]
+            return min(-1, ground_y - self.y - 1)
+        return -1
 
     def build(self) -> "MerchantHouse":
         super().build()
@@ -108,340 +82,387 @@ class MerchantHouse(House[Merchant]):
         with self.editor.pushTransform(
             Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
         ):
-            self.build_foundation()
-            self.build_frame_and_walls()
-            self.build_roof()
-            self.build_door_and_porch()
-            self.build_windows()
-            self.build_chimney()
+            placeCuboid(self.editor, (0, 1, 0), (26, 22, 16), Block("air"))
+
+            self.build_foundation_and_pond()
+            self.build_main_building()
+            self.build_right_wing()
+            self.build_bonsai_tree()
             self.build_merchant_shops()
 
         return self
 
-    def build_foundation(self) -> None:
-        """Place the sub-surface and lower visible stone foundation layout."""
-        placeCuboid(
-            self.editor,
-            (0, -5, 0),
-            (self.width - 1, self.foundation_height - 1, self.depth - 1),
-            self.foundation,
+    def build_foundation_and_pond(self) -> None:
+        house_tf = Transform(
+            translation=(self.x, self.y, self.z), rotation=self.rotation
         )
 
-    def build_frame_and_walls(self) -> None:
-        """Erect hollow layout walls and reinforce corners with vertical logs."""
-        start_y = self.foundation_height
-        end_y = self.height - 1
+        for x in range(1, 26):
+            for z in range(1, 16):
+                if 17 <= x <= 24 and 1 <= z <= 4:
+                    continue
 
-        # Clear the inside of the house
-        placeCuboid(
-            self.editor,
-            (0, start_y, 0),
-            (self.width - 1, end_y, self.depth - 1),
-            Block("air"),
-        )
+                bottom = self._get_bottom_y(x, z, house_tf)
+                for y_f in range(bottom, 1):
+                    blk = (
+                        choice(self.base_stone)
+                        if (x + z) % 2 == 0
+                        else choice(self.base_stone_alt)
+                    )
+                    self.editor.placeBlock((x, y_f, z), blk)
 
-        placeCuboidHollow(
-            self.editor,
-            (0, start_y, 0),
-            (self.width - 1, end_y, self.depth - 1),
-            self.wall,
-        )
-
-        corners = [
-            (0, 0),
-            (self.width - 1, 0),
-            (0, self.depth - 1),
-            (self.width - 1, self.depth - 1),
-        ]
-        for cx, cz in corners:
-            placeCuboid(
-                self.editor,
-                (cx, start_y, cz),
-                (cx, end_y, cz),
-                self.pillar,
-            )
-
-    def _get_stairs(self, palette, facing: str, half: str = "bottom") -> list[Block]:
-        """Generate structurally oriented and state-mixed stair block arrays."""
-        normal, damaged = palette
-        return self.transformed(
-            Block(normal.id, {"facing": facing, "half": half}),
-            Block(damaged.id, {"facing": facing, "half": half}),
-        )
-
-    def _get_slabs(self, palette) -> list[Block]:
-        """Generate uniform flat base slab block arrays."""
-        normal, damaged = palette
-        return self.transformed(
-            Block(normal.id, {"type": "bottom"}),
-            Block(damaged.id, {"type": "bottom"}),
-        )
-
-    def build_roof(self) -> None:
-        """Process layer-by-layer cross-intersecting roof segments and outer facade gables."""
-        max_half = max(self.halfWidth, self.halfDepth)
-
-        for h in range(max_half + 1):
-            yy = self.height + h - 1
-
-            self._build_roof_slope_x(h, yy)
-            self._build_roof_slope_z(h, yy)
-
-            if h > 0:
-                self._fill_gable_facades(h, yy)
-
-    def _build_roof_slope_x(self, h: int, yy: int) -> None:
-        """Trace North and South facing slopes while appending eaves and structural gap fill blocks."""
-        if h > self.halfDepth:
-            return
-
-        z_north, z_south = h, self.depth - 1 - h
-        is_peak = h == self.halfDepth
-
-        for x in range(-1, self.width + 1):
-            is_trim = x == -1 or x == self.width
-            palette = (
-                self.roofTrimSlab
-                if is_peak
-                else (self.roofTrim if is_trim else self.roofStairsBase)
-            )
-            transversal_h = min(x, self.width - 1 - x) if 0 <= x < self.width else -1
-
-            if h >= transversal_h:
-                if is_peak:
-                    # Finalize central ridge line with top slabs and solid blocks below
-                    self.editor.placeBlock((x, yy, z_north), self._get_slabs(palette))
-                    normal_trim_block, damaged_trim_block = self.roofTrimBlock
-                    full_block = self.transformed(normal_trim_block, damaged_trim_block)
-                    self.editor.placeBlock((x, yy - 1, z_north), full_block)
+                if x in (1, 15, 25) or z in (1, 5, 15):
+                    self.editor.placeBlock((x, 1, z), choice(self.base_stone))
+                    selected_slab = choice(self.porch_slab)
+                    self.editor.placeBlock(
+                        (x, 2, z), Block(selected_slab.id, {"type": "bottom"})
+                    )
                 else:
-                    self.editor.placeBlock(
-                        (x, yy, z_north), self._get_stairs(palette, "south")
-                    )
-                    self.editor.placeBlock(
-                        (x, yy, z_south), self._get_stairs(palette, "north")
-                    )
+                    self.editor.placeBlock((x, 1, z), choice(self.base_stone_alt))
+                    self.editor.placeBlock((x, 2, z), choice(self.roof_block))
 
-                    # Mount support fixtures under outer stone overhang eaves
-                    if is_trim:
-                        self.editor.placeBlock(
-                            (x, yy - 1, z_north),
-                            self._get_stairs(palette, "north", "top"),
-                        )
-                        self.editor.placeBlock(
-                            (x, yy - 1, z_south),
-                            self._get_stairs(palette, "south", "top"),
-                        )
+        # Pond
+        for x in range(17, 25):
+            for z in range(1, 5):
+                self.editor.placeBlock((x, 0, z), choice(self.base_stone))
 
-    def _build_roof_slope_z(self, h: int, yy: int) -> None:
-        """Trace East and West facing slopes while appending eaves and structural gap fill blocks."""
-        if h > self.halfWidth:
-            return
-
-        x_west, x_east = h, self.width - 1 - h
-        is_peak = h == self.halfWidth
-
-        for z in range(-1, self.depth + 1):
-            is_trim = z == -1 or z == self.depth
-            palette = (
-                self.roofTrimSlab
-                if is_peak
-                else (self.roofTrim if is_trim else self.roofStairsBase)
-            )
-            transversal_h = min(z, self.depth - 1 - z) if 0 <= z < self.depth else -1
-
-            if h >= transversal_h:
-                if is_peak:
-                    # Finalize central ridge line with top slabs and solid blocks below
-                    self.editor.placeBlock((x_west, yy, z), self._get_slabs(palette))
-                    normal_trim_block, damaged_trim_block = self.roofTrimBlock
-                    full_block = self.transformed(normal_trim_block, damaged_trim_block)
-                    self.editor.placeBlock((x_west, yy - 1, z), full_block)
+                # South
+                if z == 1:
+                    stair = Block("stone_brick_stairs", {"facing": "south"})
+                    self.editor.placeBlock((x, 1, z), stair)
+                # North
+                elif z == 4:
+                    stair = Block("stone_brick_stairs", {"facing": "north"})
+                    self.editor.placeBlock((x, 1, z), stair)
+                # East
+                elif x == 17:
+                    stair = Block("stone_brick_stairs", {"facing": "east"})
+                    self.editor.placeBlock((x, 1, z), stair)
+                # West
+                elif x == 24:
+                    stair = Block("stone_brick_stairs", {"facing": "west"})
+                    self.editor.placeBlock((x, 1, z), stair)
                 else:
-                    self.editor.placeBlock(
-                        (x_west, yy, z), self._get_stairs(palette, "east")
-                    )
-                    self.editor.placeBlock(
-                        (x_east, yy, z), self._get_stairs(palette, "west")
-                    )
+                    self.editor.placeBlock((x, 1, z), Block("water"))
 
-                    # Mount support fixtures under outer stone overhang eaves
-                    if is_trim:
-                        self.editor.placeBlock(
-                            (x_west, yy - 1, z),
-                            self._get_stairs(palette, "west", "top"),
-                        )
-                        self.editor.placeBlock(
-                            (x_east, yy - 1, z),
-                            self._get_stairs(palette, "east", "top"),
-                        )
+        # Main entrance steps
+        for x in [7, 8, 9]:
+            stair = Block("stone_brick_stairs", {"facing": "south"})
+            self.editor.placeBlock((x, 1, 0), stair)
+            self.editor.placeBlock((x, 2, 0), Block("air"))
 
-    def _fill_gable_facades(self, h: int, yy: int) -> None:
-        """Seal triangular open profiles under structural roof slopes using native wall elements."""
-        z_in1, z_in2 = h, self.depth - 1 - h
-        if z_in1 <= z_in2:
-            placeCuboid(self.editor, (0, yy - 1, z_in1), (0, yy - 1, z_in2), self.wall)
-            placeCuboid(
-                self.editor,
-                (self.width - 1, yy - 1, z_in1),
-                (self.width - 1, yy - 1, z_in2),
-                self.wall,
+    def build_main_building(self) -> None:
+        # Ground floor structural pillars
+        for px in [2, 6, 10, 14]:
+            for y in range(3, 7):
+                self.editor.placeBlock((px, y, 2), choice(self.pillar_wood))
+                self.editor.placeBlock((px, y, 14), choice(self.pillar_wood))
+        for pz in [2, 6, 10, 14]:
+            for y in range(3, 7):
+                self.editor.placeBlock((2, y, pz), choice(self.pillar_wood))
+                self.editor.placeBlock((14, y, pz), choice(self.pillar_wood))
+
+        # Front Wall
+        for x in range(3, 14):
+            if x not in [6, 10]:
+                for y in range(3, 6):
+                    is_door = x in [7, 8, 9]
+                    blk = Block("air") if is_door else choice(self.shoji_block)
+                    self.editor.placeBlock((x, y, 2), blk)
+
+        # Back Wall
+        for x in range(3, 14):
+            self.editor.placeBlock(
+                (x, 6, 14), Block(choice(self.beam_wood).id, {"axis": "x"})
             )
+            if x in [6, 10]:
+                continue
+            is_window = x in [4, 12]
+            for y in range(3, 6):
+                if is_window and y in [4, 5]:
+                    self.editor.placeBlock((x, y, 14), choice(self.shoji_block))
+                    td_face = "south" if y == 4 else "north"
+                    self.editor.placeBlock(
+                        (x, y, 15),
+                        Block(
+                            choice(self.shoji_trapdoor).id,
+                            {"facing": td_face, "open": "true"},
+                        ),
+                    )
+                else:
+                    self.editor.placeBlock((x, y, 14), choice(self.wall_wood))
 
-        x_in1, x_in2 = h, self.width - 1 - h
-        if x_in1 <= x_in2:
-            placeCuboid(self.editor, (x_in1, yy - 1, 0), (x_in2, yy - 1, 0), self.wall)
-            placeCuboid(
-                self.editor,
-                (x_in1, yy - 1, self.depth - 1),
-                (x_in2, yy - 1, self.depth - 1),
-                self.wall,
+        # Left Wall
+        for z in range(3, 14):
+            self.editor.placeBlock(
+                (2, 6, z), Block(choice(self.beam_wood).id, {"axis": "z"})
             )
+            if z in [6, 10]:
+                continue
+            is_window = z in [4, 8, 12]
+            for y in range(3, 6):
+                if is_window and y in [4, 5]:
+                    self.editor.placeBlock((2, y, z), choice(self.shoji_block))
+                    self.editor.placeBlock(
+                        (1, y, z),
+                        Block(
+                            choice(self.shoji_trapdoor).id,
+                            {"facing": "east", "open": "true"},
+                        ),
+                    )
+                else:
+                    self.editor.placeBlock((2, y, z), choice(self.wall_wood))
 
-    def build_door_and_porch(self) -> None:
-        """Carve and anchor the front entryway door alongside external step platforms."""
-        door_x = self.halfWidth
-        door_y = self.foundation_height + 1
-        door_z = 0
+        # Double doors (Front)
+        db = Block("dark_oak_door", {"half": "lower", "facing": "north"})
+        dt = Block("dark_oak_door", {"half": "upper", "facing": "north"})
+        self.editor.placeBlock((8, 3, 2), db)
+        self.editor.placeBlock((8, 4, 2), dt)
 
-        doorBlock = Block(
-            "dark_oak_door", {"facing": "north", "hinge": "left", "half": "lower"}
-        )
-        self.editor.placeBlock((door_x, door_y, door_z), doorBlock)
-        self.editor.placeBlock((door_x, door_y, door_z), doorBlock)
+        # Skirt roof (Mokoshi)
+        self._build_roof_ring(1, 15, 1, 15, 6, "slab")
+        self._build_roof_ring(2, 14, 2, 14, 6, "stair")
 
-        stair_block = self.transformed(
-            Block("stone_brick_stairs", {"facing": "south"}),
-            Block("cracked_stone_bricks"),
-        )
-        below_block = self.transformed(
-            Block("stone_bricks"),
-            Block("cracked_stone_bricks"),
-        )
-        self.editor.placeBlock((door_x, door_y - 1, door_z - 1), stair_block)
-        self.editor.placeBlock((door_x, door_y - 2, door_z - 2), stair_block)
-        self.editor.placeBlock((door_x, door_y - 2, door_z - 1), below_block)
+        # Second floor inset pillars
+        for px in [3, 7, 11, 13]:
+            for y in range(7, 11):
+                self.editor.placeBlock((px, y, 3), choice(self.pillar_wood))
+                self.editor.placeBlock((px, y, 13), choice(self.pillar_wood))
 
-    def build_windows(self) -> None:
-        """Embed window frames and side shutter trapdoors across center wall profiles."""
-        window_y = self.height // 2
-        glass = Block("glass_pane")
+        # Second Floor
+        # Front Wall
+        for x in range(4, 13):
+            if x not in [7, 11]:
+                self.editor.placeBlock((x, 7, 3), choice(self.wall_wood))
+                self.editor.placeBlock((x, 8, 3), choice(self.shoji_block))
+                self.editor.placeBlock((x, 9, 3), choice(self.shoji_block))
 
-        # West-facing wall window placement
-        self.editor.placeBlock((0, window_y, self.halfDepth), glass)
+                # Window planters
+                if x in [4, 5, 8, 9, 12]:
+                    self.editor.placeBlock((x, 7, 2), Block("grass_block"))
+                    self.editor.placeBlock((x, 8, 2), Block("peony"))
+                    trapdoor = Block(
+                        "spruce_trapdoor", {"facing": "north", "open": "true"}
+                    )
+                    self.editor.placeBlock((x, 7, 1), trapdoor)
+
+        # Back & Side Timber Walls
+        for x in range(4, 13):
+            if x not in [7, 11]:
+                self.editor.placeBlock(
+                    (x, 10, 13), Block(choice(self.beam_wood).id, {"axis": "x"})
+                )
+                for y in range(7, 10):
+                    self.editor.placeBlock((x, y, 13), choice(self.wall_wood))
+
+        for z in range(4, 13):
+            if z not in [7, 11]:
+                self.editor.placeBlock(
+                    (3, 10, z), Block(choice(self.beam_wood).id, {"axis": "z"})
+                )
+                self.editor.placeBlock(
+                    (13, 10, z), Block(choice(self.beam_wood).id, {"axis": "z"})
+                )
+                for y in range(7, 10):
+                    self.editor.placeBlock((3, y, z), choice(self.wall_wood))
+                    self.editor.placeBlock((13, y, z), choice(self.wall_wood))
+
+        # Main roof
+        y_roof = 11
+        self._build_roof_ring(2, 14, 2, 14, y_roof, "slab")
+        self._build_roof_ring(3, 13, 3, 13, y_roof, "stair")
+        self._build_roof_ring(4, 12, 4, 12, y_roof + 1, "stair")
+
+        for dz in range(4):
+            y_cur = y_roof + 2 + dz
+            z_n = 5 + dz
+            z_s = 11 - dz
+            if z_n > z_s:
+                break
+
+            # Slopes
+            for x in range(5, 12):
+                bn = self.roof_outline_stair if x in (5, 11) else self.roof_fill_stair
+                bs = self.roof_outline_stair if x in (5, 11) else self.roof_fill_stair
+                self.editor.placeBlock(
+                    (x, y_cur, z_n), Block(choice(bn).id, {"facing": "south"})
+                )
+                self.editor.placeBlock(
+                    (x, y_cur, z_s), Block(choice(bs).id, {"facing": "north"})
+                )
+                self.editor.placeBlock((x, y_cur - 1, z_n), choice(self.roof_block))
+                self.editor.placeBlock((x, y_cur - 1, z_s), choice(self.roof_block))
+
+            # Gables
+            for x in [5, 11]:
+                for z_f in range(z_n + 1, z_s):
+                    self.editor.placeBlock((x, y_cur, z_f), choice(self.shoji_block))
+
+        # Roof ridge
+        y_peak = 17
+        for x in range(4, 13):
+            slab = Block(choice(self.roof_outline_slab).id, {"type": "bottom"})
+            self.editor.placeBlock((x, y_peak, 8), slab)
+            self.editor.placeBlock((x, y_peak - 1, 8), choice(self.roof_block))
+
         self.editor.placeBlock(
-            (-1, window_y, self.halfDepth),
-            Block("spruce_trapdoor", {"facing": "west", "open": "true"}),
-        )
-
-        # East-facing wall window placement
-        self.editor.placeBlock((self.width - 1, window_y, self.halfDepth), glass)
-        self.editor.placeBlock(
-            (self.width, window_y, self.halfDepth),
-            Block("spruce_trapdoor", {"facing": "east", "open": "true"}),
-        )
-
-    def build_chimney(self) -> None:
-        """Erect an external brick exhaust stack equipped with an active campfire exhaust topper."""
-        chimney_x = self.width - 2
-        chimney_z = self.depth - 2
-        roof_peak_y = self.height + max(self.halfWidth, self.halfDepth)
-
-        placeCuboid(
-            self.editor,
-            (chimney_x, self.foundation_height, chimney_z),
-            (chimney_x, roof_peak_y + 1, chimney_z),
-            self.foundation,
-        )
-
-        self.editor.placeBlock(
-            (chimney_x, roof_peak_y + 2, chimney_z), Block("cobblestone_wall")
+            (3, y_peak, 8),
+            Block(choice(self.roof_outline_stair).id, {"facing": "west"}),
         )
         self.editor.placeBlock(
-            (chimney_x, roof_peak_y + 3, chimney_z), Block("campfire")
+            (13, y_peak, 8),
+            Block(choice(self.roof_outline_stair).id, {"facing": "east"}),
         )
-        self.editor.placeBlock(
-            (chimney_x, roof_peak_y + 3, chimney_z), Block("campfire")
-        )
+
+    def build_right_wing(self) -> None:
+        """Constructs the attached 1-story merchant shop wing."""
+        for x in range(16, 25):
+            self.editor.placeBlock((x, 3, 5), choice(self.porch_fence))
+        for z in range(5, 14):
+            self.editor.placeBlock((25, 3, z), choice(self.porch_fence))
+
+        # Closed back framing for the marketplace sector
+        for x in range(16, 26):
+            self.editor.placeBlock(
+                (x, 6, 14), Block(choice(self.beam_wood).id, {"axis": "x"})
+            )
+            for y in range(3, 6):
+                self.editor.placeBlock((x, y, 14), choice(self.wall_wood))
+
+        self._build_roof_ring(16, 26, 4, 15, 6, "slab")
+        for x in range(17, 25):
+            for z in range(5, 14):
+                self.editor.placeBlock((x, 6, z), choice(self.roof_block))
+
+    def build_bonsai_tree(self) -> None:
+        """Grows a large decorative bonsai tree on the right wing roof."""
+        tx, ty, tz = 21, 7, 10
+        for y in range(ty, ty + 5):
+            self.editor.placeBlock((tx, y, tz), choice(self.bonsai_log))
+
+        self.editor.placeBlock((tx - 1, ty + 2, tz), choice(self.bonsai_log))
+        self.editor.placeBlock((tx + 1, ty + 3, tz), choice(self.bonsai_log))
+
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+                for dz in range(-2, 3):
+                    if dx**2 + dy**2 + dz**2 <= 5:
+                        self.editor.placeBlock(
+                            (tx + dx, ty + 4 + dy, tz + dz), choice(self.bonsai_leaves)
+                        )
 
     def build_merchant_shops(self) -> None:
-        """Calculate alignment coordinates and systematically deploy front-facing storefront modules."""
-        nb_shops = len(self.player.store)
+        """Populate the right wing with multiple distributed merchant stands."""
+        shops = self.player.store
 
-        shop_w = 3
-        spacing = 1
+        positions = [(17, 13), (20, 13), (23, 13), (18, 9), (22, 9)]
 
-        total_shops_width = (nb_shops * shop_w) + ((nb_shops - 1) * spacing)
-        start_shop_x = (self.width - total_shops_width) // 2
+        for i, shop in enumerate(shops):
+            if i >= len(positions):
+                break
 
-        shop_z = -4
-        shop_y = 1
+            sx, sz = positions[i]
+            self._build_single_shop(sx, 3, sz, shop)
 
-        for i in range(nb_shops):
-            current_x = start_shop_x + i * (shop_w + spacing)
-            self._build_single_shop(current_x, shop_y, shop_z)
+    def _build_single_shop(self, sx: int, sy: int, sz: int, shop) -> None:
+        """Builds a detailed 2-block wide shop counter, inventory chest, and sign."""
+        # Store Counter
+        s1 = Block(choice(self.porch_slab).id, {"type": "top"})
+        s2 = Block(choice(self.porch_slab).id, {"type": "top"})
+        self.editor.placeBlock((sx, sy, sz - 1), s1)
+        self.editor.placeBlock((sx + 1, sy, sz - 1), s2)
 
-    def _build_single_shop(self, sx: int, sy: int, sz: int) -> None:
-        """Build an individual covered market stall containing descriptive wares and storage crates."""
-        # Erect support corner fences
-        for dx in [0, 2]:
-            for dz in [0, 1]:
-                self.editor.placeBlock((sx + dx, sy, sz - dz), Block("oak_fence"))
-                self.editor.placeBlock((sx + dx, sy + 1, sz - dz), Block("oak_fence"))
+        # Randomly Distribute Items in Chest NBT
+        qty = shop.owned_quantity
+        slots = {}
+        if qty > 0:
+            for _ in range(qty):
+                slot = rnd.randint(0, 26)
+                slots[slot] = slots.get(slot, 0) + 1
 
-        # Stretch roof canvas and hanging drapery carpets
-        roof_y = sy + 2
-        placeCuboid(
-            self.editor, (sx, roof_y, sz - 1), (sx + 2, roof_y, sz), Block("green_wool")
+        items_nbt = []
+        clean_name = shop.name.replace("minecraft:", "")
+        for slot, count in slots.items():
+            items_nbt.append(
+                f'{{Slot: {slot}b, id: "minecraft:{clean_name}", Count: {count}b}}'
+            )
+
+        chest_nbt = f"{{Items: [{', '.join(items_nbt)}]}}"
+
+        # Place Chest facing North
+        chest = Block("chest", {"facing": "north"}, data=chest_nbt)
+        self.editor.placeBlock((sx, sy, sz), chest)
+
+        # Place utility barrel
+        self.editor.placeBlock((sx + 1, sy, sz), Block("barrel", {"facing": "up"}))
+
+        # Informational Sign with Front Text
+        display_name = clean_name.capitalize().replace("_", " ")
+
+        placeSign(
+            editor=self.editor,
+            position=(sx, sy + 1, sz),
+            wall=True,
+            facing="north",
+            frontLine1=display_name,
+            frontLine2=f"Price: {shop.price}",
+            frontLine3=f"Stock: {qty}/{shop.max_quantity}",
+            frontLine4=f"Food: {shop.is_food}",
         )
 
-        for dx in range(3):
-            self.editor.placeBlock((sx + dx, roof_y, sz + 1), Block("green_carpet"))
+        # Small Awning Canopy
+        fence = choice(self.porch_fence)
+        self.editor.placeBlock((sx, sy + 1, sz - 1), fence)
+        self.editor.placeBlock((sx + 1, sy + 1, sz - 1), fence)
+        self.editor.placeBlock((sx, sy + 2, sz - 1), choice(self.shoji_trapdoor))
+        self.editor.placeBlock((sx + 1, sy + 2, sz - 1), choice(self.shoji_trapdoor))
 
-        # Anchor functional utility and layout storage containers
-        self.editor.placeBlock((sx, sy, sz), Block("barrel", {"facing": "up"}))
-        self.editor.placeBlock((sx + 2, sy, sz), Block("composter"))
+    def _build_roof_ring(self, x1, x2, z1, z2, y, part) -> None:
+        """Helper to build a sloped ring with corners swooping upward."""
+        for x in range(x1, x2 + 1):
+            for z in range(z1, z2 + 1):
+                if not (x == x1 or x == x2 or z == z1 or z == z2):
+                    continue
 
-        # Position central trading vault with open access ventilation space above
-        self.editor.placeBlock((sx + 1, sy, sz), Block("chest", {"facing": "north"}))
-        self.editor.placeBlock((sx + 1, sy + 1, sz), Block("air"))
+                dist_corn = min(x - x1, x2 - x) + min(z - z1, z2 - z)
+                stair = (
+                    self.roof_outline_stair if dist_corn < 2 else self.roof_fill_stair
+                )
+                slab = self.roof_outline_slab if dist_corn < 2 else self.roof_fill_slab
+
+                if part == "slab":
+                    selected_slab = choice(slab)
+                    self.editor.placeBlock(
+                        (x, y, z), Block(selected_slab.id, {"type": "bottom"})
+                    )
+                elif part == "stair":
+                    if x == x1:
+                        facing = "east"
+                    elif x == x2:
+                        facing = "west"
+                    elif z == z1:
+                        facing = "south"
+                    else:
+                        facing = "north"
+                    selected_stair = choice(stair)
+                    self.editor.placeBlock(
+                        (x, y, z), Block(selected_stair.id, {"facing": facing})
+                    )
+
+        if part == "slab":
+            for cx, cz in [(x1, z1), (x2, z1), (x1, z2), (x2, z2)]:
+                selected_block = choice(self.roof_outline_block)
+                self.editor.placeBlock((cx, y, cz), Block(selected_block.id))
 
     def get_local_footprint(self) -> tuple[int, int, int, int]:
-        """
-        Computes the local unrotated footprint boundary, extending it
-        to account for the storefront shops row alignment.
-        """
-        # Get baseline structure footprint dimensions (0, width, 0, depth)
-        min_x, max_x, min_z, max_z = super().get_local_footprint()
-
-        # Calculate local storefront requirements
-        nb_shops = len(self.player.store)
-        shop_w = 3
-        spacing = 1
-        total_shops_width = (nb_shops * shop_w) + ((nb_shops - 1) * spacing)
-        shop_extension = 5
-
-        # Expand the local X boundaries if the shops row is wider than the house
-        house_w = max_x - min_x
-        if total_shops_width > house_w:
-            diff = (total_shops_width - house_w) // 2
-            min_x -= diff
-            max_x += diff
-
-        # Shops sit directly in front of the building (negative local Z space)
-        min_z -= shop_extension
-
-        return min_x, max_x, min_z, max_z
+        return 0, self.width, 0, self.depth
 
     def plot(self, ax: Axes) -> "MerchantHouse":
         rect = patches.Rectangle(
-            (
-                self.x + (0 if self.rotation in [0, 3] else 3),
-                self.z + (0 if self.rotation in [0, 1] else 3),
-            ),
-            self.width + 3,
-            self.depth + 3,
-            edgecolor="red",
+            (self.x, self.z),
+            self.width,
+            self.depth,
+            edgecolor="orange",
             fill=False,
             alpha=0.6,
             angle=self.rotation * 90,

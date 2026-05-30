@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from log.config import get_sim_logger, setup_logging
 
 from .enums import InfectionStatus
-from .merchant import MAX_ITEMS, Merchant, Shop
+from .merchant import MAX_ITEMS, MAX_QUANTITY, Merchant, Shop
 from .pirate import Pirate
 from .player import Player
 from .villager import Villager
@@ -166,7 +166,9 @@ class Simulation:
             )
             nb_shops = random.randint(1, MAX_ITEMS)
             for _ in range(nb_shops):
-                m.store.append(Shop.from_item(owner=m))
+                shop = Shop.from_item(owner=m)
+                shop.owned_quantity = random.randint(0, MAX_QUANTITY)
+                m.store.append(shop)
             players.append(m)
             i += 1
 
