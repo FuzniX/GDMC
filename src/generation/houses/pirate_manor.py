@@ -1,395 +1,261 @@
-from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from random import choice
-from typing import TYPE_CHECKING, ClassVar, Sequence
+from typing import TYPE_CHECKING, Sequence
+
 from gdpc.block import Block
 from gdpc.transform import Transform
-from matplotlib import patches
-from matplotlib.axes import Axes
-from .house import House, BLOCK_PROPORTION
+
+from src.utils import get_palette_for_biome
+from .house import House
 
 if TYPE_CHECKING:
     from src.simulation.pirate import Pirate
-    
+
 TREASURY_THRESHOLDS: list[int] = [10_000, 50_000, 200_000]
-QUARTILE_CONFIG: dict[int, dict] = {
-    1: {"floors": 2, "size": 13, "tower_radius": 2, "height": 5},
-    2: {"floors": 3, "size": 17, "tower_radius": 2, "height": 5},
-    3: {"floors": 4, "size": 21, "tower_radius": 3, "height": 5},
-    4: {"floors": 5, "size": 25, "tower_radius": 3, "height": 5},
-}
 
 @dataclass
 class PirateManor(House["Pirate"]):
-    floors: int = 2
-    tower_radius: int = 2
-    wallPalette: ClassVar[Sequence[Sequence[Block]]] = [[Block("polished_diorite"), Block("calcite")]]
-    pillarPalette: ClassVar[Sequence[Sequence[Block]]] = [[Block("netherite_block"), Block("gold_block")]]
-    foundationPalette: ClassVar[Sequence[Sequence[Block]]] = [[Block("coal_block"), Block("polished_blackstone_bricks")]]
-    roofPalette: ClassVar[Sequence[Sequence[Block]]] = [[Block("deepslate_tile_stairs"), Block("deepslate_tile_slab"), Block("deepslate_tiles")]]
-    floorBlockOptions: ClassVar[Sequence[Block]] = [Block("dark_oak_planks"), Block("spruce_planks")]
+    # specific attribute for the pagoda
+    quartile: int = 1
+    
+    # calculated after init
+    floors: int = field(init=False)
 
-    def __post_init__(self) -> None:
-        self.wall = self.transformed(*choice(self.wallPalette))
-        self.pillar = self.transformed(*choice(self.pillarPalette))
-        self.foundation = self.transformed(*choice(self.foundationPalette))
-        self.roofStair, self.roofSlab, self.roofBlock = choice(self.roofPalette)
-        self.floor_block = choice(self.floorBlockOptions)
-        self.floors = max(2, min(5, self.floors))
-        self.tower_radius = max(2, min(3, self.tower_radius))
-        self.halfWidth = self.width // 2
-        self.halfDepth = self.depth // 2
-        self.foundation_height = 2
-        self.floor_height = self.height
-
-    @staticmethod
-    def treasury_quartile(treasury: int) -> int:
-        for i, threshold in enumerate(TREASURY_THRESHOLDS):
-            if treasury < threshold: 
-                return i + 1
-        return 4
+    def __post_init__(self):
+        # ranges from 4 to 7 floors depending on pirate wealth
+        self.floors = 3 + self.quartile
 
     @classmethod
-    def from_pirates(cls, pirates: "list[Pirate]", editor, x: int, y: int, z: int, rotation: int = 0) -> "PirateManor":
+    def from_pirates(cls, pirates: Sequence["Pirate"], *args, **kwargs) -> "PirateManor":
+        """calculates total wealth to determine pagoda size"""
+        total_treasury = sum(getattr(p, "treasury", 0) for p in pirates)
         
-        if not pirates: 
-            raise ValueError("No pirates present")
-
-        player = pirates[0] 
+        quartile = 1
+        for threshold in TREASURY_THRESHOLDS:
+            if total_treasury >= threshold:
+                quartile += 1
+        kwargs["quartile"] = min(quartile, 4)
         
-        treasury = player.simulation.pirate_money
-        quartile = cls.treasury_quartile(treasury)
-        config = QUARTILE_CONFIG[quartile]
+        # inject parent arguments
+        if "player" not in kwargs and pirates:
+            kwargs["player"] = pirates[0]
+            
+        # define a buffer margin around the manor
+        BUFFER = 3 
+        base_size = 19 + (kwargs["quartile"] * 2) 
         
-        return cls(
-            player=player,
-            editor=editor, 
-            x=x, y=y, z=z, 
-            rotation=rotation, 
-            height=config["height"], 
-            depth=config["size"], 
-            width=config["size"], 
-            floors=config["floors"], 
-            tower_radius=config["tower_radius"]
-        )
+        # add buffer for both sides
+        kwargs.setdefault("width", base_size + (BUFFER * 2))
+        kwargs.setdefault("depth", base_size + (BUFFER * 2))
+        kwargs.setdefault("height", 55)
+            
+        return cls(*args, **kwargs)
 
-    @property
-    def block_proportion(self) -> dict[str, int]:
-        from src.simulation.enums import InfectionStatus
+    def get_door_pos(self) -> tuple[int, int]:
+        # computes the global coordinates for the front entrance location
+        tf = Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
+        pos = tf.apply((self.width // 2, 0, -1))
+        return pos[0], pos[2]
 
-        alive = self.player.simulation.alive_pirates
-
-        if not alive: 
-            return super().block_proportion
-        if all(p.infection_status == InfectionStatus.Infected for p in alive): 
-            return BLOCK_PROPORTION[InfectionStatus.Infected]
-        
-        return BLOCK_PROPORTION[InfectionStatus.Susceptible]
-
-    def safe_place(self, x: int, y: int, z: int, block: Block) -> None:
-        try: 
-            self.editor.placeBlock((x, y, z), block)
-        except Exception: 
-            pass
-
-    def _tower_centers(self) -> list[tuple[int, int]]:
-        r = self.tower_radius
-        return [(-r, -r), (self.width - 1 + r, -r), (-r, self.depth - 1 + r), (self.width - 1 + r, self.depth - 1 + r)]
+    def _rotate_facing(self, facing: str) -> str:
+        # shifts directional strings clockwise depending on manor rotation
+        order = ["north", "east", "south", "west"]
+        return order[(order.index(facing) + self.rotation) % 4]
 
     def build(self) -> "PirateManor":
+        # main orchestration method to build the manor
+        super().build()
+        
         try:
-            try: 
-                hm = self.editor.worldSlice.heightmaps["MOTION_BLOCKING_NO_LEAVES"]
-            except KeyError: 
-                hm = self.editor.worldSlice.heightmaps["WORLD_SURFACE"]
-            max_y = self.y
-            extra = self.tower_radius
-            base_tf = Transform(translation=(self.x, 0, self.z), rotation=self.rotation)
-            for lx in range(-extra, self.width + extra):
-                for lz in range(-extra, self.depth + extra):
-                    try:
-                        global_pos = base_tf.apply((lx, 0, lz))
-                        ground_y = hm[global_pos.x, global_pos.z]
-                        if ground_y > max_y: 
-                            max_y = ground_y
-                    except IndexError: pass
-            self.y = max_y
-        except Exception: 
-            pass
-        with self.editor.pushTransform(Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)):
-            self.clear_interior()
-            self.build_foundation()
-            for i in range(self.floors):
-                y_off = self.foundation_height + i * self.floor_height
-                self.build_walls(y_off)
-                if i > 0: 
-                    self.build_floor_slab(y_off)
-                if i < self.floors - 1:
-                    junction_y = y_off + self.floor_height
-                    self.build_intermediate_floor(junction_y)
-                    self.build_floor_cornice(junction_y)
-            self.build_corner_towers()
-            top_y = self.foundation_height + self.floors * self.floor_height
-            self.build_pagoda_roof(base_y=top_y)
-            self.build_stairs()
-            self.build_entrance()
-            self.build_windows()
-            self.build_decorations()
+            biome_string = self.editor.getBiome((self.x, self.y, self.z))
+        except Exception:
+            biome_string = "default"
+            
+        palette = get_palette_for_biome(biome_string)
+        
+        f_blocks = palette.get("manor_foundation", [Block("stone_bricks")])
+        p_blocks = palette.get("manor_pillar", [Block("stripped_mangrove_log")])
+        w_blocks = palette.get("manor_wall", [Block("white_concrete")])
+        r_stairs = palette.get("manor_roof_stairs", [Block("oxidized_cut_copper_stairs")])
+        r_slabs = palette.get("manor_roof_slab", [Block("oxidized_cut_copper_slab")])
+        r_blocks = palette.get("manor_roof_block", [Block("oxidized_cut_copper")])
+        floor_blocks = palette.get("manor_floor", [Block("smooth_sandstone")])
+        t_blocks = palette.get("manor_timber", [Block("mangrove_fence")])
+
+        calculated_floors = 4 + self.quartile
+
+        # calculate max height
+        try:
+            hm = self.editor.worldSlice.heightmaps["MOTION_BLOCKING_NO_LEAVES"]
+        except KeyError:
+            hm = self.editor.worldSlice.heightmaps["WORLD_SURFACE"]
+
+        max_y = 0
+        for x in range(-2, self.width + 2):
+            for z in range(-2, self.depth + 2):
+                global_pos = Transform(translation=(self.x, 0, self.z), rotation=self.rotation).apply((x, 0, z))
+                if 0 <= global_pos.x < hm.shape[0] and 0 <= global_pos.z < hm.shape[1]:
+                    h = hm[global_pos.x, global_pos.z]
+                    if h > max_y:
+                        max_y = h
+        
+        self.y = max_y
+
+        with self.editor.pushTransform(
+            Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
+        ):
+            current_y = 0
+            cx = self.width // 2
+            cz = self.depth // 2
+
+            self._build_adaptive_foundation(hm, f_blocks)
+            self._build_stone_base(current_y, f_blocks)
+            current_y += 1
+
+            for floor_idx in range(calculated_floors):
+                shrink = floor_idx * 2
+                min_x, max_x = shrink, self.width - 1 - shrink
+                min_z, max_z = shrink, self.depth - 1 - shrink
+                
+                # keep a minimum size for the top floors
+                if (max_x - min_x) < 5 or (max_z - min_z) < 5:
+                    min_x, max_x = cx - 3, cx + 3
+                    min_z, max_z = cz - 3, cz + 3
+
+                self._build_floor_level(min_x, max_x, min_z, max_z, current_y, floor_blocks, t_blocks, p_blocks, w_blocks)
+                
+                if floor_idx == 0:
+                    self._build_random_door(cx, cz, min_x, max_x, min_z, max_z, current_y, floor_blocks)
+
+                height_of_floor = 4
+                roof_base_y = current_y + height_of_floor
+                self._build_pagoda_roof(min_x, max_x, min_z, max_z, roof_base_y, r_slabs, r_blocks, r_stairs)
+                
+                current_y = roof_base_y + 2
+                
+            self._build_sorin_top(cx, cz, current_y, p_blocks)
+
         return self
 
-    def clear_interior(self) -> None:
-        extra = self.tower_radius + 2
-        total_h = self.foundation_height + self.floors * self.floor_height + 14
-        for y in range(self.foundation_height, total_h):
-            for x in range(-extra, self.width + extra):
-                for z in range(-extra, self.depth + extra):
-                    self.safe_place(x, y, z, Block("air"))
+    def _build_adaptive_foundation(self, hm, f_blocks):
+        # adaptive foundations
+        for x in range(-2, self.width + 2):
+            for z in range(-2, self.depth + 2):
+                global_pos = Transform(translation=(self.x, 0, self.z), rotation=self.rotation).apply((x, 0, z))
+                if 0 <= global_pos.x < hm.shape[0] and 0 <= global_pos.z < hm.shape[1]:
+                    ground_y = hm[global_pos.x, global_pos.z]
+                    for y in range(ground_y, self.y):
+                        self.editor.placeBlock((x, y - self.y, z), choice(f_blocks))
 
-    def build_foundation(self) -> None:
-        try:
-            try: hm = self.editor.worldSlice.heightmaps["MOTION_BLOCKING_NO_LEAVES"]
-            except KeyError: hm = self.editor.worldSlice.heightmaps["WORLD_SURFACE"]
-            has_hm = True
-        except Exception: has_hm = False
-        house_tf = Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
-        def get_bottom_y(lx: int, lz: int) -> int:
-            if not has_hm: return -2
-            try:
-                global_pos = house_tf.apply((lx, 0, lz))
-                ground_y = hm[global_pos.x, global_pos.z]
-                local_y = ground_y - self.y
-                return max(-30, min(-2, local_y - 1))
-            except IndexError: return -2
-        for x in range(self.width):
-            for z in range(self.depth):
-                bottom = get_bottom_y(x, z)
-                for y in range(bottom, self.foundation_height): self.safe_place(x, y, z, choice(self.foundation))
-        for tx, tz in self._tower_centers():
-            for dx in range(-self.tower_radius, self.tower_radius + 1):
-                for dz in range(-self.tower_radius, self.tower_radius + 1):
-                    lx, lz = tx + dx, tz + dz
-                    bottom = get_bottom_y(lx, lz)
-                    for y in range(bottom, self.foundation_height): self.safe_place(lx, y, lz, choice(self.foundation))
+    def _build_stone_base(self, current_y, f_blocks):
+        # stone base
+        for x in range(-1, self.width + 1):
+            for z in range(-1, self.depth + 1):
+                self.editor.placeBlock((x, current_y, z), choice(f_blocks))
 
-    def build_walls(self, floor_y_offset: int = 0) -> None:
+    def _build_floor_level(self, min_x, max_x, min_z, max_z, current_y, floor_blocks, t_blocks, p_blocks, w_blocks):
+        # floor blocks
+        for x in range(min_x - 1, max_x + 2):
+            for z in range(min_z - 1, max_z + 2):
+                self.editor.placeBlock((x, current_y - 1, z), choice(floor_blocks))
+                self.editor.placeBlock((x, current_y, z), choice(floor_blocks))
 
-        end_y = floor_y_offset + self.floor_height - 1
-        for y in range(floor_y_offset, end_y + 1):
-            for x in range(self.width):
-                for z in range(self.depth):
+        # front facade
+        for x in range(min_x, max_x + 1):
+            if x == min_x: self.editor.placeBlock((x-1, current_y + 1, min_z - 1), choice(t_blocks))
+            if x == max_x: self.editor.placeBlock((x+1, current_y + 1, min_z - 1), choice(t_blocks))
+            self.editor.placeBlock((x, current_y + 1, min_z - 1), choice(t_blocks))
+            self.editor.placeBlock((x, current_y+3, min_z - 1), Block("weathered_copper_trapdoor", {"facing": "north", "half": "top", "open": "true"}))
 
-                    is_corner = (x in (0, self.width - 1)) and (z in (0, self.depth - 1))
-                    is_edge = (x in (0, self.width - 1)) or (z in (0, self.depth - 1))
+        # back facade
+        for x in range(min_x, max_x + 1):
+            if x == min_x: self.editor.placeBlock((x-1, current_y + 1, max_z + 1), choice(t_blocks))
+            if x == max_x: self.editor.placeBlock((x+1, current_y + 1, max_z + 1), choice(t_blocks))
+            self.editor.placeBlock((x, current_y + 1, max_z + 1), choice(t_blocks))
+            self.editor.placeBlock((x, current_y+3, max_z + 1), Block("weathered_copper_trapdoor", {"facing": "south", "half": "top", "open": "true"}))
 
-                    if is_corner: 
-                        self.safe_place(x, y, z, choice(self.pillar))
-                    elif is_edge: 
-                        self.safe_place(x, y, z, choice(self.wall))
+        # left facade
+        for z in range(min_z, max_z + 1):
+            if z == min_z: self.editor.placeBlock((min_x + 1, current_y + 1, z-1), choice(t_blocks))
+            if z == max_z: self.editor.placeBlock((min_x + 1, current_y + 1, z+1), choice(t_blocks))
+            self.editor.placeBlock((min_x - 1, current_y + 1, z), choice(t_blocks))
+            self.editor.placeBlock((min_x - 1, current_y+3, z), Block("weathered_copper_trapdoor", {"facing": "west", "half": "top", "open": "true"}))
 
-    def build_floor_slab(self, y: int) -> None:
+        # right facade
+        for z in range(min_z, max_z + 1):
+            if z == min_z: self.editor.placeBlock((max_x - 1, current_y + 1, z-1), choice(t_blocks))
+            if z == max_z: self.editor.placeBlock((max_x - 1, current_y + 1, z+1), choice(t_blocks))
+            self.editor.placeBlock((max_x + 1, current_y + 1, z), choice(t_blocks))
+            self.editor.placeBlock((max_x + 1, current_y+3, z), Block("weathered_copper_trapdoor", {"facing": "east", "half": "top", "open": "true"}))
 
-        for x in range(1, self.width - 1):
-            for z in range(1, self.depth - 1): 
-                self.safe_place(x, y, z, self.floor_block)
+        # walls and details
+        height_of_floor = 4
+        for h in range(height_of_floor):
+            y_pos = current_y + 1 + h
+            for x in range(min_x, max_x + 1):
+                for z in range(min_z, max_z + 1):
+                    is_corner = (x == min_x or x == max_x) and (z == min_z or z == max_z)
+                    is_edge = (x == min_x or x == max_x) or (z == min_z or z == max_z)
+                        
+                    if is_corner:
+                        self.editor.placeBlock((x, y_pos, z), choice(p_blocks))
+                    elif is_edge:
+                        self.editor.placeBlock((x, y_pos, z), choice(w_blocks))
+                        self.editor.placeBlock((x, y_pos -2, z), choice(w_blocks))
 
-    def build_intermediate_floor(self, y: int) -> None:
+    def _build_random_door(self, cx, cz, min_x, max_x, min_z, max_z, current_y, floor_blocks):
+        # random door placement on ground floor
+        local_facing = choice(["north", "east", "south", "west"])
+        door_facing = self._rotate_facing(local_facing)
+        door_block = "mangrove_door"
+        
+        if local_facing == "north":
+            door_x, door_z, air_x, air_z = cx, min_z, cx, min_z - 1
+        elif local_facing == "south":
+            door_x, door_z, air_x, air_z = cx, max_z, cx, max_z + 1
+        elif local_facing == "west":
+            door_x, door_z, air_x, air_z = min_x, cz, min_x - 1, cz
+        else: # east
+            door_x, door_z, air_x, air_z = max_x, cz, max_x + 1, cz
 
-        for x in range(1, self.width - 1):
-            for z in range(1, self.depth - 1): 
-                self.safe_place(x, y, z, self.roofBlock)
+        self.editor.placeBlock((door_x, current_y + 1, door_z), Block(door_block, {"half": "lower", "facing": door_facing}))
+        self.editor.placeBlock((door_x, current_y + 2, door_z), Block(door_block, {"half": "upper", "facing": door_facing}))
+        self.editor.placeBlock((door_x, current_y, door_z), choice(floor_blocks))
+        
+        self.editor.placeBlock((air_x, current_y + 1, air_z), Block("air"))
+        self.editor.placeBlock((air_x, current_y + 2, air_z), Block("air"))
 
-    def build_floor_cornice(self, y: int) -> None:
-
-        w, d = self.width - 1, self.depth - 1
-        corners = {(-1, -1), (-1, d + 1), (w + 1, -1), (w + 1, d + 1)}
-        for x in range(-1, w + 2):
-            for z_out, facing in [(-1, "north"), (d + 1, "south")]:
-
-                if (x, z_out) in corners: 
-                    self.safe_place(x, y, z_out, self.roofBlock)
+    def _build_pagoda_roof(self, min_x, max_x, min_z, max_z, roof_base_y, r_slabs, r_blocks, r_stairs):
+        # pagoda style roof
+        for x in range(min_x - 2, max_x + 3):
+            for z in range(min_z - 2, max_z + 3):
+                is_outer_corner = (x == min_x - 2 or x == max_x + 2) and (z == min_z - 2 or z == max_z + 2)
+                if is_outer_corner:
+                    self.editor.placeBlock((x, roof_base_y + 1, z), choice(r_slabs))
+                    self.editor.placeBlock((x, roof_base_y, z), choice(r_blocks))
+                elif (x == min_x - 2 or x == max_x + 2) or (z == min_z - 2 or z == max_z + 2):
+                    self.editor.placeBlock((x, roof_base_y, z), choice(r_slabs))
                 else:
-                    stair = self.transformed(Block(self.roofStair.id, {"facing": facing}), Block(self.roofStair.id, {"facing": facing}))
-                    self.safe_place(x, y, z_out, stair)
-        for z in range(0, d + 1):
-            for x_out, facing in [(-1, "west"), (w + 1, "east")]:
+                    self.editor.placeBlock((x, roof_base_y, z), choice(r_blocks))
 
-                stair = self.transformed(Block(self.roofStair.id, {"facing": facing}), Block(self.roofStair.id, {"facing": facing}))
-                self.safe_place(x_out, y, z, stair)
+        # roof slope
+        for x in range(min_x - 1, max_x + 2):
+            for z in range(min_z - 1, max_z + 2):
+                if x == min_x - 1: self.editor.placeBlock((x, roof_base_y + 1, z), Block(r_stairs[0].id, {"facing": "east"}))
+                elif x == max_x + 1: self.editor.placeBlock((x, roof_base_y + 1, z), Block(r_stairs[0].id, {"facing": "west"}))
+                elif z == min_z - 1: self.editor.placeBlock((x, roof_base_y + 1, z), Block(r_stairs[0].id, {"facing": "south"}))
+                elif z == max_z + 1: self.editor.placeBlock((x, roof_base_y + 1, z), Block(r_stairs[0].id, {"facing": "north"}))
 
-    def build_corner_towers(self) -> None:
-
-        tower_top = self.foundation_height + self.floors * self.floor_height + 2
-        for tx, tz in self._tower_centers():
-            for y in range(self.foundation_height, tower_top + 1):
-                for dx in range(-self.tower_radius, self.tower_radius + 1):
-                    for dz in range(-self.tower_radius, self.tower_radius + 1):
-
-                        on_edge = abs(dx) == self.tower_radius or abs(dz) == self.tower_radius
-                        block = choice(self.wall) if on_edge else Block("air")
-                        self.safe_place(tx + dx, y, tz + dz, block)
-
-            merlon_y = tower_top + 1
-            for dx in range(-self.tower_radius, self.tower_radius + 1):
-                for dz in range(-self.tower_radius, self.tower_radius + 1):
-                    on_edge = abs(dx) == self.tower_radius or abs(dz) == self.tower_radius
-                    is_merlon = (dx % 2 == 0) or (dz % 2 == 0)
-
-                    if on_edge and is_merlon: 
-                        self.safe_place(tx + dx, merlon_y, tz + dz, Block("gold_block"))
-            self.safe_place(tx, merlon_y + 1, tz, Block("lantern", {"hanging": "false"}))
-
-    def build_pagoda_roof(self, base_y: int) -> None:
-
-        for x in range(1, self.width - 1):
-            for z in range(1, self.depth - 1): 
-                self.safe_place(x, base_y, z, self.roofBlock)
-
-        self._build_roof_level(cx=self.halfWidth, cz=self.halfDepth, base_y=base_y, hw=self.halfWidth + 1, hd=self.halfDepth + 1)
-        mhw, mhd = max(2, self.halfWidth - 1), max(2, self.halfDepth - 1)
-        self._build_roof_level(cx=self.halfWidth, cz=self.halfDepth, base_y=base_y + 2, hw=mhw, hd=mhd)
-        top_y = base_y + 2 + max(mhw, mhd)
-
-        self.safe_place(self.halfWidth, top_y, self.halfDepth, self.roofBlock)
-        self.safe_place(self.halfWidth, top_y + 1, self.halfDepth, Block("gold_block"))
-        self.safe_place(self.halfWidth, top_y + 2, self.halfDepth, Block("dark_oak_fence"))
-        self.safe_place(self.halfWidth, top_y + 3, self.halfDepth, Block("dark_oak_fence"))
-        self.safe_place(self.halfWidth, top_y + 4, self.halfDepth, Block("black_banner"))
-
-    def _build_roof_level(self, cx: int, cz: int, base_y: int, hw: int, hd: int) -> None:
-        for i in range(min(hw, hd)):
-
-            y = base_y + i
-            x0, x1 = cx - hw + i, cx + hw - i
-            z0, z1 = cz - hd + i, cz + hd - i
-
-            for x in range(x0, x1 + 1):
-
-                for z in range(z0, z1 + 1):
-                    ex, ez = x in (x0, x1), z in (z0, z1)
-
-                    if not (ex or ez):
-                        continue
-                    if ex and ez: 
-                        self.safe_place(x, y, z, Block("gold_block"))
-                    elif ez:
-                        facing = "south" if z == z0 else "north"
-                        self.safe_place(x, y, z, Block(self.roofStair.id, {"facing": facing}))
-                    else:
-                        facing = "east" if x == x0 else "west"
-                        self.safe_place(x, y, z, Block(self.roofStair.id, {"facing": facing}))
-
-    def build_stairs(self) -> None:
-
-        if self.floors <= 1: 
-            return
-        
-        stair_x = self.width - 2
-
-        for floor_index in range(self.floors - 1):
-
-            junction_y = self.foundation_height + (floor_index + 1) * self.floor_height
-            walk_y = self.foundation_height if floor_index == 0 else self.foundation_height + floor_index * self.floor_height + 1
-            num_steps = junction_y - walk_y + 1
-            sz_start = 2
-
-            for step in range(num_steps):
-
-                sy, sz = walk_y + step, sz_start + step
-
-                if sz >= self.depth - 1: 
-                    break
-
-                self.safe_place(stair_x, sy, sz, Block("dark_oak_stairs", {"facing": "south", "half": "bottom"}))
-                self.safe_place(stair_x, sy + 1, sz, Block("air"))
-                self.safe_place(stair_x, sy + 2, sz, Block("air"))
-
-                if sy < junction_y: 
-                    self.safe_place(stair_x, junction_y, sz, Block("air"))
-
-    def build_entrance(self) -> None:
-        dx, dy = self.halfWidth, self.foundation_height + 1
-
-        for side, hinge in [(-1, "right"), (1, "left")]:
-            self.safe_place(dx + side, dy, 0, Block("dark_oak_door", {"facing": "north", "hinge": hinge, "half": "lower"}))
-            self.safe_place(dx + side, dy + 1, 0, Block("dark_oak_door", {"facing": "north", "hinge": hinge, "half": "upper"}))
-
-        for ddy in range(3): 
-            self.safe_place(dx, dy + ddy, 0, Block("air"))
-        
-        
-        for side in [-2, 2]:
-            for y_offset in range(3):
-                self.safe_place(dx + side, (dy-1) + y_offset, 0, Block("gold_block"))
-
-        for x_offset in range(-2, 3):
-            self.safe_place(dx + x_offset, dy + 2, 0, Block("gold_block"))
-        
-        house_tf = Transform(translation=(self.x, self.y, self.z), rotation=self.rotation)
-
-        try: 
-            hm, has_hm = self.editor.worldSlice.heightmaps["WORLD_SURFACE"], True
-        except Exception: 
-            has_hm = False
-
-        for step in range(20):
-
-            local_y, local_z = dy - 1 - step, -1 - step
-            all_columns_solid = True
-
-            for stair_x in [dx - 1, dx, dx + 1]:
-
-                world_pos = house_tf.apply((stair_x, local_y, local_z))
-
-                if has_hm and world_pos.y < hm[world_pos.x, world_pos.z]: 
-                    continue
-
-                all_columns_solid = False
-
-                break
-            if all_columns_solid: 
-                break
-
-            for stair_x in [dx - 1, dx, dx + 1]:
-
-                self.safe_place(stair_x, local_y, local_z, Block("deepslate_tile_stairs", {"facing": "south"}))
-                for clear_y in range(1, 4): 
-                    self.safe_place(stair_x, local_y + clear_y, local_z, Block("air"))
-
-    def build_windows(self) -> None:
-        pane = Block("light_gray_stained_glass_pane")
-        for fi in range(self.floors):
-            wy = self.foundation_height + fi * self.floor_height + 2
-            
-            for dz in [self.halfDepth - 1, self.halfDepth + 1]:
-                self.safe_place(0, wy, dz, pane)
-                self.safe_place(self.width - 1, wy, dz, pane)
-
-            for dx in [self.halfWidth - 2, self.halfWidth + 2]:
-            
-                if fi == 0 and 0 == 0:
-                    continue 
-                
-                self.safe_place(dx, wy, 0, pane)
-                self.safe_place(dx, wy, self.depth - 1, pane) 
-
-    def build_decorations(self) -> None:
-        base_y, total_y = self.foundation_height, self.foundation_height + self.floors * self.floor_height
-        for cx, cz in [(2, 2), (self.width - 3, 2), (2, self.depth - 3), (self.width - 3, self.depth - 3)]:
-            self.safe_place(cx, base_y, cz + 1, Block("chest", {"facing": "north"}))
-        for side in [-1, 1]:
-            self.safe_place(self.halfWidth + side, total_y, 0, Block("iron_bars"))
-            self.safe_place(self.halfWidth + side, total_y - 1, 0, Block("lantern", {"hanging": "true"}))
-        roof_top = total_y + 2 + max(self.halfWidth - 1, self.halfDepth - 1)
-        self.safe_place(self.halfWidth, roof_top + 1, self.halfDepth, Block("grindstone", {"face": "floor", "facing": "north"}))
-
-    def get_footprint(self) -> tuple[int, int, int, int]:
-        bx, ex, bz, ez = super().get_footprint()
-        padding = 4
-        total_margin = self.tower_radius + 1 + padding
-        return bx - total_margin, ex + total_margin, bz - total_margin, ez + total_margin
-
-    def plot(self, ax: Axes) -> "PirateManor":
-        bx, ex, bz, ez = self.get_footprint()
-        rect = patches.Rectangle((bx, bz), ex - bx, ez - bz, edgecolor="black", fill=False, alpha=0.8, linewidth=2)
+    def _build_sorin_top(self, cx, cz, current_y, p_blocks):
+        # sorin top
+        self.editor.placeBlock((cx, current_y-1, cz), choice(p_blocks))
+        self.editor.placeBlock((cx, current_y, cz), Block("red_nether_brick_wall"))
+        self.editor.placeBlock((cx, current_y + 1, cz), Block("lightning_rod"))
+    
+    def plot(self, ax) -> "PirateManor":
+        # renders a purple outline representing the manor boundary on a matplotlib plot
+        from matplotlib import patches
+        x0, z0, x1, z1 = self.get_footprint()
+        rect = patches.Rectangle((x0, z0), x1 - x0, z1 - z0, edgecolor="purple", fill=False, alpha=0.8, lw=2)
         ax.add_patch(rect)
         return self
