@@ -10,13 +10,18 @@ ALLOWED_TIME = 600  # seconds
 
 
 def main():
+    simulation = Simulation.generate(
+        nb_villagers=20,
+        nb_merchants=10,
+        nb_pirates=25,
+        days=100,
+    )
+
+    simulation.run()
+
     village = Village(
         editor=editor,
-        simulation=Simulation.generate(
-            nb_villagers=20,
-            nb_merchants=10,
-            nb_pirates=10,
-        ),
+        simulation=simulation,
     )
 
     village.build()

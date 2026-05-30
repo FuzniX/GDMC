@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from random import choice
-from typing import ClassVar, Sequence
 
 from gdpc.block import Block
 from gdpc.transform import Transform
@@ -168,9 +167,8 @@ class PirateHouse(House["Pirate"]):
                         self.editor.placeBlock((x, y, z), choice(self.pillar))
                     else:
                         # intermediate vertical pillars every 2 blocks
-                        is_mid_pillar = (
-                            (x in (0, self.width - 1) and z % 2 == 0)
-                            or (z in (0, self.depth - 1) and x % 2 == 0)
+                        is_mid_pillar = (x in (0, self.width - 1) and z % 2 == 0) or (
+                            z in (0, self.depth - 1) and x % 2 == 0
                         )
 
                         if is_beam_row:
@@ -200,7 +198,11 @@ class PirateHouse(House["Pirate"]):
                 for x in range(1, self.width - 1):
                     is_mid_pillar_here = x % 2 == 0
                     if not is_mid_pillar_here:
-                        accent = choice(self.pillar) if (x + row_idx) % 2 == 0 else choice(self.wall)
+                        accent = (
+                            choice(self.pillar)
+                            if (x + row_idx) % 2 == 0
+                            else choice(self.wall)
+                        )
                         self.editor.placeBlock((x, mid_y, 0), accent)
                         self.editor.placeBlock((x, mid_y, self.depth - 1), accent)
 
@@ -208,7 +210,11 @@ class PirateHouse(House["Pirate"]):
                 for z in range(1, self.depth - 1):
                     is_mid_pillar_here = z % 2 == 0
                     if not is_mid_pillar_here:
-                        accent = choice(self.pillar) if (z + row_idx) % 2 == 0 else choice(self.wall)
+                        accent = (
+                            choice(self.pillar)
+                            if (z + row_idx) % 2 == 0
+                            else choice(self.wall)
+                        )
                         self.editor.placeBlock((0, mid_y, z), accent)
                         self.editor.placeBlock((self.width - 1, mid_y, z), accent)
 
@@ -255,16 +261,26 @@ class PirateHouse(House["Pirate"]):
 
         # hanging lanterns at the cornice corners
         for cx, cz in [(-1, -1), (-1, d + 1), (w + 1, -1), (w + 1, d + 1)]:
-            self.editor.placeBlock((cx, y - 1, cz), Block("lantern", {"hanging": "true"}))
+            self.editor.placeBlock(
+                (cx, y - 1, cz), Block("lantern", {"hanging": "true"})
+            )
             self.editor.placeBlock((cx, y + 1, cz), fence)
 
         # lanterns every 2 blocks along the edges
         for x in range(1, w, 2):
-            self.editor.placeBlock((x, y - 1, -1), Block("lantern", {"hanging": "true"}))
-            self.editor.placeBlock((x, y - 1, d + 1), Block("lantern", {"hanging": "true"}))
+            self.editor.placeBlock(
+                (x, y - 1, -1), Block("lantern", {"hanging": "true"})
+            )
+            self.editor.placeBlock(
+                (x, y - 1, d + 1), Block("lantern", {"hanging": "true"})
+            )
         for z in range(1, d, 2):
-            self.editor.placeBlock((-1, y - 1, z), Block("lantern", {"hanging": "true"}))
-            self.editor.placeBlock((w + 1, y - 1, z), Block("lantern", {"hanging": "true"}))
+            self.editor.placeBlock(
+                (-1, y - 1, z), Block("lantern", {"hanging": "true"})
+            )
+            self.editor.placeBlock(
+                (w + 1, y - 1, z), Block("lantern", {"hanging": "true"})
+            )
 
     def build_japanese_roof(self, base_y: int | None = None) -> None:
         if base_y is None:
@@ -365,12 +381,16 @@ class PirateHouse(House["Pirate"]):
 
         # door
         self.editor.placeBlock(
-            (door_x, door_y-1, door_z),
-            Block("dark_oak_door", {"facing": "north", "hinge": "left", "half": "lower"}),
+            (door_x, door_y - 1, door_z),
+            Block(
+                "dark_oak_door", {"facing": "north", "hinge": "left", "half": "lower"}
+            ),
         )
         self.editor.placeBlock(
             (door_x, door_y, door_z),
-            Block("dark_oak_door", {"facing": "north", "hinge": "left", "half": "upper"}),
+            Block(
+                "dark_oak_door", {"facing": "north", "hinge": "left", "half": "upper"}
+            ),
         )
 
     def build_windows(self) -> None:
@@ -390,19 +410,32 @@ class PirateHouse(House["Pirate"]):
 
             if self.halfDepth > 0:
                 # sides with glass and a solid block above
-                above_side = choice(self.pillar) if self.halfDepth % 2 == 0 else choice(self.wall)
+                above_side = (
+                    choice(self.pillar)
+                    if self.halfDepth % 2 == 0
+                    else choice(self.wall)
+                )
                 self.editor.placeBlock((0, window_y, self.halfDepth), pane)
                 self.editor.placeBlock((self.width - 1, window_y, self.halfDepth), pane)
                 self.editor.placeBlock((0, window_y + 1, self.halfDepth), above_side)
-                self.editor.placeBlock((self.width - 1, window_y + 1, self.halfDepth), above_side)
+                self.editor.placeBlock(
+                    (self.width - 1, window_y + 1, self.halfDepth), above_side
+                )
 
     def build_decorations(self) -> None:
         total_wall_height = self.foundation_height + self.floors * self.floor_height
 
         # lanterns at the base corners
         base_y = self.foundation_height
-        for cx, cz in [(-1, -1), (-1, self.depth), (self.width, -1), (self.width, self.depth)]:
-            self.editor.placeBlock((cx, base_y, cz), Block("lantern", {"hanging": "false"}))
+        for cx, cz in [
+            (-1, -1),
+            (-1, self.depth),
+            (self.width, -1),
+            (self.width, self.depth),
+        ]:
+            self.editor.placeBlock(
+                (cx, base_y, cz), Block("lantern", {"hanging": "false"})
+            )
 
     def get_footprint(self) -> tuple[int, int, int, int]:
         # returns the expanded bounding box area including safety padding
