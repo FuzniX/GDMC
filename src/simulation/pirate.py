@@ -287,8 +287,8 @@ class Pirate(Player["Villager | Merchant | Shop"]):
             return 1
 
         rank = bisect_left(all_bounties, self.bounty)
-        rank = min(rank, n - 1)  # securite si bounty depasse le max connu
-        ratio = rank / (n - 1)  # 0.0 → 1.0
+        rank = min(rank, n - 1)
+        ratio = rank / (n - 1)
 
         if ratio < 0.25:
             return 1

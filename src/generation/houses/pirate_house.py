@@ -279,19 +279,18 @@ class PirateHouse(House["Pirate"]):
 
         mini_half_w = max(2, self.halfWidth - 1)
         mini_half_d = max(2, self.halfDepth - 1)
-        self._build_roof_level(
-            center_x=self.halfWidth,
-            center_z=self.halfDepth,
-            base_y=base_y + 2,
-            half_w=mini_half_w,
-            half_d=mini_half_d,
-        )
         top_y = base_y + 2 + max(mini_half_w, mini_half_d)
-        self.editor.placeBlock((self.halfWidth, top_y, self.halfDepth), self.roofBlock)
-        self.editor.placeBlock(
-            (self.halfWidth, top_y + 1, self.halfDepth),
-            self.roofBlock,
-        )
+        
+        if self.floors > 1:
+            self.editor.placeBlock(
+             (self.halfWidth, top_y, self.halfDepth),
+             self.roofBlock,
+         )
+        else:
+            self.editor.placeBlock(
+                (self.halfWidth, top_y-1, self.halfDepth),
+                self.roofBlock,
+                )
 
     def _build_roof_level(
         self, center_x: int, center_z: int, base_y: int, half_w: int, half_d: int

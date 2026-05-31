@@ -28,7 +28,7 @@ class PirateManor(House["Pirate"]):
         self.floors = 3 + self.quartile
 
     @classmethod
-    def from_pirates(cls, pirates: Sequence["Pirate"], x: int, y: int, z: int, rotation: int = 0) -> "PirateManor":
+    def from_pirates(cls, pirates: Sequence["Pirate"], x: int, y: int, z: int, rotation: int = 0,editor=None) -> "PirateManor":
         """
         Calculate the size of the manor based on the pirate shared treasury.
         The manor size scales through 4 quartiles to represent the pirate's economic situation.
@@ -52,6 +52,8 @@ class PirateManor(House["Pirate"]):
         depth = base_size + (BUFFER * 2)
         height = 55
 
+        player = pirates[0] if pirates else None
+        
         # Return a new instance with the calculated spatial parameters
         return cls(
             x=x, y=y, z=z, 
@@ -60,6 +62,8 @@ class PirateManor(House["Pirate"]):
             width=width, 
             depth=depth, 
             height=height,
+            player=player,
+            editor=editor
         )
 
     def get_door_pos(self) -> tuple[int, int]:
