@@ -30,8 +30,8 @@ class PirateManor(House["Pirate"]):
     @classmethod
     def from_pirates(cls, pirates: Sequence["Pirate"], x: int, y: int, z: int, rotation: int = 0) -> "PirateManor":
         """
-        Calculate the size of the manor based on the pirate faction's shared treasury.
-        The manor size scales through 4 quartiles to represent economic prosperity.
+        Calculate the size of the manor based on the pirate shared treasury.
+        The manor size scales through 4 quartiles to represent the pirate's economic situation.
         """
         # Retrieve the shared treasury from the first pirate in the sequence
         total_treasury = getattr(pirates[0], "treasury", 0) if pirates else 0
@@ -51,8 +51,6 @@ class PirateManor(House["Pirate"]):
         width = base_size + (BUFFER * 2)
         depth = base_size + (BUFFER * 2)
         height = 55
-
-        # Assign the first pirate as the manor owner/player if available
 
         # Return a new instance with the calculated spatial parameters
         return cls(
