@@ -28,6 +28,11 @@ class PirateHouse(House["Pirate"]):
         self.roofStair = self.transformed(*palette["pirate_roof_stairs"])[0]
         self.roofSlab = self.transformed(*palette["pirate_roof_slab"])[0]
         self.roofBlock = self.transformed(*palette["pirate_roof_block"])[0]
+        self.door = palette["pirate_door"][0]
+        self.fence = palette["pirate_fence"][0]
+        self.trapdoor = palette["pirate_trapdoor"][0]
+        self.innerStair = palette["pirate_inner_stair"][0]
+        self.window = palette["pirate_window"][0]
 
         # keep floor count within reasonable bounds
         self.floors = max(1, min(4, self.floors))
@@ -151,72 +156,48 @@ class PirateHouse(House["Pirate"]):
         beam_ys = set(range(start_y, end_y + 1, 2))
 
         for y in range(start_y, end_y + 1):
-            is_beam_row = y in beam_ys
             for x in range(self.width):
                 for z in range(self.depth):
                     is_corner = (x in (0, self.width - 1)) and (
                         z in (0, self.depth - 1)
                     )
-                    is_edge = (x in (0, self.width - 1)) or (z in (0, self.depth - 1))
-
-                    if not is_edge:
-                        continue
-
+                    is_edge = (x in (0, self.width - 1)) or (
+                        z in (0, self.depth - 1)
+                    )
                     if is_corner:
-                        # wooden corner pillar
                         self.editor.placeBlock((x, y, z), choice(self.pillar))
-                    else:
-                        # intermediate vertical pillars every 2 blocks
-                        is_mid_pillar = (x in (0, self.width - 1) and z % 2 == 0) or (
-                            z in (0, self.depth - 1) and x % 2 == 0
-                        )
+                    elif is_edge:
+                        self.editor.placeBlock((x, y, z), choice(self.wall))
 
-                        if is_beam_row:
-                            # horizontal beam row with pillars along the edge
-                            self.editor.placeBlock((x, y, z), choice(self.pillar))
-                        elif is_mid_pillar:
-                            # intermediate vertical column
-                            self.editor.placeBlock((x, y, z), choice(self.pillar))
-                        else:
-                            # wall filling between beams and pillars
-                            self.editor.placeBlock((x, y, z), choice(self.wall))
+        # weathered trapdoors on the last wall row of each floor (all 4 sides)
+        td_y = end_y
+        w = self.width - 1
+        d = self.depth - 1
 
-        # decorative pattern on wall panels
-        # solid block checkerboard pattern using pillars or walls, no half-blocks
-        # all blocks placed on pre-filled edge positions to prevent holes
-        if self.floor_height >= 4:
-            beam_list = sorted(beam_ys)
-            for row_idx in range(len(beam_list) - 1):
-                row_top = beam_list[row_idx]
-                row_bot = beam_list[row_idx + 1]
-                mid_y = (row_top + row_bot) // 2
-
-                if mid_y in beam_ys:
-                    continue
-
-                # front and back facades
-                for x in range(1, self.width - 1):
-                    is_mid_pillar_here = x % 2 == 0
-                    if not is_mid_pillar_here:
-                        accent = (
-                            choice(self.pillar)
-                            if (x + row_idx) % 2 == 0
-                            else choice(self.wall)
-                        )
-                        self.editor.placeBlock((x, mid_y, 0), accent)
-                        self.editor.placeBlock((x, mid_y, self.depth - 1), accent)
-
-                # side facades
-                for z in range(1, self.depth - 1):
-                    is_mid_pillar_here = z % 2 == 0
-                    if not is_mid_pillar_here:
-                        accent = (
-                            choice(self.pillar)
-                            if (z + row_idx) % 2 == 0
-                            else choice(self.wall)
-                        )
-                        self.editor.placeBlock((0, mid_y, z), accent)
-                        self.editor.placeBlock((self.width - 1, mid_y, z), accent)
+        # front wall (z=0)
+        for x in range(self.width):
+            self.editor.placeBlock(
+                (x, td_y, -1),
+                Block(self.trapdoor.id, {"facing": "north", "half": "top", "open": "true"}),
+            )
+        # back wall (z=depth-1)
+        for x in range(self.width):
+            self.editor.placeBlock(
+                (x, td_y, d+1),
+                Block(self.trapdoor.id, {"facing": "south", "half": "top", "open": "true"}),
+            )
+        # left wall (x=0)
+        for z in range(self.depth):
+            self.editor.placeBlock(
+                (-1, td_y, z),
+                Block(self.trapdoor.id, {"facing": "west", "half": "top", "open": "true"}),
+            )
+        # right wall (x=width-1)
+        for z in range(self.depth):
+            self.editor.placeBlock(
+                (w+1, td_y, z),
+                Block(self.trapdoor.id, {"facing": "east", "half": "top", "open": "true"}),
+            )
 
     def build_intermediate_floor(self, y: int) -> None:
         # fills the ceiling/floor layout between two levels
@@ -251,7 +232,7 @@ class PirateHouse(House["Pirate"]):
                 self.editor.placeBlock((x_out, y, z), stair)
 
         # fence railing on the cornice for japanese balcony style
-        fence = Block("dark_oak_fence")
+        fence = self.fence
         for x in range(0, w + 1):
             self.editor.placeBlock((x, y + 1, -1), fence)
             self.editor.placeBlock((x, y + 1, d + 1), fence)
@@ -309,7 +290,7 @@ class PirateHouse(House["Pirate"]):
         self.editor.placeBlock((self.halfWidth, top_y, self.halfDepth), self.roofBlock)
         self.editor.placeBlock(
             (self.halfWidth, top_y + 1, self.halfDepth),
-            Block("grindstone", {"face": "floor", "facing": "north"}),
+            self.roofBlock,
         )
 
     def _build_roof_level(
@@ -363,7 +344,7 @@ class PirateHouse(House["Pirate"]):
                     break
                 self.editor.placeBlock(
                     (stair_x, sy, sz),
-                    Block("dark_oak_stairs", {"facing": "south", "half": "bottom"}),
+                    Block(self.innerStair.id, {"facing": "south", "half": "bottom"}),
                 )
                 self.editor.placeBlock((stair_x, sy + 1, sz), Block("air"))
                 self.editor.placeBlock((stair_x, sy + 2, sz), Block("air"))
@@ -373,28 +354,22 @@ class PirateHouse(House["Pirate"]):
     def build_door(self) -> None:
         door_x, door_y, door_z = self.halfWidth, self.foundation_height + 1, 0
 
-        # entrance arch with pillars on each side of the door
-        self.editor.placeBlock((door_x - 1, door_y, door_z), choice(self.pillar))
-        self.editor.placeBlock((door_x + 1, door_y, door_z), choice(self.pillar))
-        self.editor.placeBlock((door_x - 1, door_y + 1, door_z), choice(self.pillar))
-        self.editor.placeBlock((door_x + 1, door_y + 1, door_z), choice(self.pillar))
-
         # door
         self.editor.placeBlock(
             (door_x, door_y - 1, door_z),
             Block(
-                "dark_oak_door", {"facing": "north", "hinge": "left", "half": "lower"}
+                self.door.id, {"facing": "north", "hinge": "left", "half": "lower"}
             ),
         )
         self.editor.placeBlock(
             (door_x, door_y, door_z),
             Block(
-                "dark_oak_door", {"facing": "north", "hinge": "left", "half": "upper"}
+                self.door.id, {"facing": "north", "hinge": "left", "half": "upper"}
             ),
         )
 
     def build_windows(self) -> None:
-        pane = Block("black_stained_glass_pane")
+        pane = self.window
 
         for floor_index in range(self.floors):
             window_y = self.foundation_height + floor_index * self.floor_height + 2
@@ -402,7 +377,7 @@ class PirateHouse(House["Pirate"]):
             if self.halfWidth > 1:
                 # front and back facade with glass and a solid block above
                 for wx in [self.halfWidth - 1, self.halfWidth + 1]:
-                    above = choice(self.pillar) if wx % 2 == 0 else choice(self.wall)
+                    above = choice(self.wall)
                     self.editor.placeBlock((wx, window_y, 0), pane)
                     self.editor.placeBlock((wx, window_y + 1, 0), above)
                     self.editor.placeBlock((wx, window_y, self.depth - 1), pane)
@@ -411,7 +386,7 @@ class PirateHouse(House["Pirate"]):
             if self.halfDepth > 0:
                 # sides with glass and a solid block above
                 above_side = (
-                    choice(self.pillar)
+                    choice(self.wall)
                     if self.halfDepth % 2 == 0
                     else choice(self.wall)
                 )
@@ -425,17 +400,46 @@ class PirateHouse(House["Pirate"]):
     def build_decorations(self) -> None:
         total_wall_height = self.foundation_height + self.floors * self.floor_height
 
-        # lanterns at the base corners
-        base_y = self.foundation_height
-        for cx, cz in [
-            (-1, -1),
-            (-1, self.depth),
-            (self.width, -1),
-            (self.width, self.depth),
-        ]:
-            self.editor.placeBlock(
-                (cx, base_y, cz), Block("lantern", {"hanging": "false"})
-            )
+        # mangrove fences around the ground floor (1st floor only)
+        # placed at foundation_height level, one block outside the walls
+        fence_y = self.foundation_height
+        fence = self.fence
+
+        # door zone to skip on front face (z=-1): halfWidth-1, halfWidth, halfWidth+1
+        door_xs = {self.halfWidth, self.halfWidth, self.halfWidth}
+
+        # front face (z=-1)
+        for x in range(self.width+1):
+            if x not in door_xs:
+                self.editor.placeBlock((x, fence_y, -1), fence)
+
+        # back face (z=depth)
+        for x in range(self.width+1):
+            self.editor.placeBlock((x, fence_y, self.depth), fence)
+
+        # left face (x=-1)
+        for z in range(self.depth+1):
+            self.editor.placeBlock((-1, fence_y, z), fence)
+
+        # right face (x=width)
+        for z in range(self.depth+1):
+            self.editor.placeBlock((self.width, fence_y, z), fence)
+
+        
+        # hanging lanterns along the roof eave edges
+        roof_y = self.foundation_height + self.floors * self.floor_height
+        w = self.width - 1
+        d = self.depth - 1
+
+        # every 2 blocks along front and back eaves
+        for x in range(1, w, 2):
+            self.editor.placeBlock((x, roof_y - 1, -1), Block("lantern", {"hanging": "true"}))
+            self.editor.placeBlock((x, roof_y - 1, d + 1), Block("lantern", {"hanging": "true"}))
+
+        # every 2 blocks along left and right eaves
+        for z in range(1, d, 2):
+            self.editor.placeBlock((-1, roof_y - 1, z), Block("lantern", {"hanging": "true"}))
+            self.editor.placeBlock((w + 1, roof_y - 1, z), Block("lantern", {"hanging": "true"}))
 
     def get_footprint(self) -> tuple[int, int, int, int]:
         # returns the expanded bounding box area including safety padding

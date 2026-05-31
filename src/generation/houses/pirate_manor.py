@@ -87,6 +87,8 @@ class PirateManor(House["Pirate"]):
         r_blocks = palette.get("manor_roof_block", [Block("oxidized_cut_copper")])
         floor_blocks = palette.get("manor_floor", [Block("smooth_sandstone")])
         t_blocks = palette.get("manor_timber", [Block("mangrove_fence")])
+        self._door_block = palette.get("pirate_door", [Block("mangrove_door")])[0]
+        self._trapdoor_id = palette.get("pirate_trapdoor", [Block("warped_trapdoor")])[0].id
 
         calculated_floors = 4 + self.quartile
 
@@ -208,10 +210,7 @@ class PirateManor(House["Pirate"]):
             self.editor.placeBlock((x, current_y + 1, min_z - 1), choice(t_blocks))
             self.editor.placeBlock(
                 (x, current_y + 3, min_z - 1),
-                Block(
-                    "weathered_copper_trapdoor",
-                    {"facing": "north", "half": "top", "open": "true"},
-                ),
+                Block(self._trapdoor_id, {"facing": "north", "half": "top", "open": "true"}),
             )
 
         # back facade
@@ -227,10 +226,7 @@ class PirateManor(House["Pirate"]):
             self.editor.placeBlock((x, current_y + 1, max_z + 1), choice(t_blocks))
             self.editor.placeBlock(
                 (x, current_y + 3, max_z + 1),
-                Block(
-                    "weathered_copper_trapdoor",
-                    {"facing": "south", "half": "top", "open": "true"},
-                ),
+                Block(self._trapdoor_id, {"facing": "south", "half": "top", "open": "true"}),
             )
 
         # left facade
@@ -246,10 +242,7 @@ class PirateManor(House["Pirate"]):
             self.editor.placeBlock((min_x - 1, current_y + 1, z), choice(t_blocks))
             self.editor.placeBlock(
                 (min_x - 1, current_y + 3, z),
-                Block(
-                    "weathered_copper_trapdoor",
-                    {"facing": "west", "half": "top", "open": "true"},
-                ),
+                Block(self._trapdoor_id, {"facing": "west", "half": "top", "open": "true"}),
             )
 
         # right facade
@@ -265,10 +258,7 @@ class PirateManor(House["Pirate"]):
             self.editor.placeBlock((max_x + 1, current_y + 1, z), choice(t_blocks))
             self.editor.placeBlock(
                 (max_x + 1, current_y + 3, z),
-                Block(
-                    "weathered_copper_trapdoor",
-                    {"facing": "east", "half": "top", "open": "true"},
-                ),
+                Block(self._trapdoor_id, {"facing": "east", "half": "top", "open": "true"}),
             )
 
         # walls and details
@@ -294,7 +284,7 @@ class PirateManor(House["Pirate"]):
         # random door placement on ground floor
         local_facing = choice(["north", "east", "south", "west"])
         door_facing = self._rotate_facing(local_facing)
-        door_block = "mangrove_door"
+        door_block = self._door_block
 
         if local_facing == "north":
             door_x, door_z, air_x, air_z = cx, min_z, cx, min_z - 1
@@ -307,11 +297,11 @@ class PirateManor(House["Pirate"]):
 
         self.editor.placeBlock(
             (door_x, current_y + 1, door_z),
-            Block(door_block, {"half": "lower", "facing": door_facing}),
+            Block(door_block.id, {"half": "lower", "facing": door_facing}),
         )
         self.editor.placeBlock(
             (door_x, current_y + 2, door_z),
-            Block(door_block, {"half": "upper", "facing": door_facing}),
+            Block(door_block.id, {"half": "upper", "facing": door_facing}),
         )
         self.editor.placeBlock((door_x, current_y, door_z), choice(floor_blocks))
 
