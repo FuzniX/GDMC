@@ -12,7 +12,7 @@ from .house import House
 if TYPE_CHECKING:
     from src.simulation.pirate import Pirate
 
-TREASURY_THRESHOLDS: list[int] = [10_000, 50_000, 200_000]
+TREASURY_THRESHOLDS: list[int] = [1000, 5000, 10000]
 
 
 @dataclass
@@ -28,32 +28,41 @@ class PirateManor(House["Pirate"]):
         self.floors = 3 + self.quartile
 
     @classmethod
-    def from_pirates(
-        cls, pirates: Sequence["Pirate"], *args, **kwargs
-    ) -> "PirateManor":
-        """calculates total wealth to determine pagoda size"""
-        total_treasury = sum(getattr(p, "treasury", 0) for p in pirates)
+    def from_pirates(cls, pirates: Sequence["Pirate"], x: int, y: int, z: int, rotation: int = 0) -> "PirateManor":
+        """
+        Calculate the size of the manor based on the pirate faction's shared treasury.
+        The manor size scales through 4 quartiles to represent economic prosperity.
+        """
+        # Retrieve the shared treasury from the first pirate in the sequence
+        total_treasury = getattr(pirates[0], "treasury", 0) if pirates else 0
 
+        # Determine the size quartile (1 to 4) based on treasury thresholds
         quartile = 1
         for threshold in TREASURY_THRESHOLDS:
             if total_treasury >= threshold:
                 quartile += 1
-        kwargs["quartile"] = min(quartile, 4)
+        
+        # Clamp the quartile to a maximum of 4 to keep generation within limits
+        quartile = min(quartile, 4)
 
-        # inject parent arguments
-        if "player" not in kwargs and pirates:
-            kwargs["player"] = pirates[0]
-
-        # define a buffer margin around the manor
+        # Define building dimensions using a buffer margin for placement
         BUFFER = 3
-        base_size = 19 + (kwargs["quartile"] * 2)
+        base_size = 19 + (quartile * 2)
+        width = base_size + (BUFFER * 2)
+        depth = base_size + (BUFFER * 2)
+        height = 55
 
-        # add buffer for both sides
-        kwargs.setdefault("width", base_size + (BUFFER * 2))
-        kwargs.setdefault("depth", base_size + (BUFFER * 2))
-        kwargs.setdefault("height", 55)
+        # Assign the first pirate as the manor owner/player if available
 
-        return cls(*args, **kwargs)
+        # Return a new instance with the calculated spatial parameters
+        return cls(
+            x=x, y=y, z=z, 
+            rotation=rotation, 
+            quartile=quartile, 
+            width=width, 
+            depth=depth, 
+            height=height,
+        )
 
     def get_door_pos(self) -> tuple[int, int]:
         # computes the global coordinates for the front entrance location
